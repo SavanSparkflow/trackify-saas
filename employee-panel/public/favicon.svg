@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#818CF8" />
+      <stop offset="50%" stop-color="#6366F1" />
+      <stop offset="100%" stop-color="#4338CA" />
+    </linearGradient>
+    <linearGradient id="circleGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#A5B4FC" />
+      <stop offset="100%" stop-color="#E0E7FF" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Rounded Rect Background -->
+  <rect x="5" y="5" width="90" height="90" rx="25" fill="url(#bgGrad)" />
+  
+  <!-- Outer Clock Ring -->
+  <circle cx="50" cy="50" r="28" stroke="url(#circleGrad)" stroke-width="7" fill="none" />
+  
+  <!-- Clock Hands -->
+  <path d="M50 30 L50 50 L64 64" stroke="#FFFFFF" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+  
+  <!-- Center Pin -->
+  <circle cx="50" cy="50" r="5" fill="#FFFFFF" />
+  
+  <!-- Decorative Sparkle -->
+  <path d="M 75 25 Q 80 25 80 20 Q 80 25 85 25 Q 80 25 80 30 Q 80 25 75 25" fill="#FFFFFF" />
+</svg>
