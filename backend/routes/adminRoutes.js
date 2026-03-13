@@ -14,8 +14,12 @@ const {
     getReports,
     getHolidays,
     addHoliday,
-    deleteHoliday
+    deleteHoliday,
+    updateOvertimeStatus
 } = require('../controllers/adminController');
+const { getRules, addRule, updateRule, deleteRule } = require('../controllers/ruleController');
+const { getNotifications, markAsRead, markAllAsRead, deleteNotification } = require('../controllers/notificationController');
+const { getSalaries, paySalary, getSalaryHistory } = require('../controllers/salaryController');
 
 const router = express.Router();
 
@@ -34,5 +38,18 @@ router.patch('/leaves/:id/status', updateLeaveStatus);
 router.get('/holidays', getHolidays);
 router.post('/holidays', addHoliday);
 router.delete('/holidays/:id', deleteHoliday);
+router.put('/overtime/:id/status', updateOvertimeStatus);
+
+router.get('/rules', getRules);
+router.post('/rules', addRule);
+router.put('/rules/:id', updateRule);
+router.delete('/rules/:id', deleteRule);
+router.get('/notifications', getNotifications);
+router.put('/notifications/:id/read', markAsRead);
+router.put('/notifications/read-all', markAllAsRead);
+router.delete('/notifications/:id', deleteNotification);
+router.get('/salaries', getSalaries);
+router.post('/salaries/pay', paySalary);
+router.get('/salaries/history/:employeeId', getSalaryHistory);
 
 module.exports = router;

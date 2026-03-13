@@ -3,6 +3,7 @@ const SubscriptionPlan = require('../models/SubscriptionPlan');
 const User = require('../models/User');
 const SystemSettings = require('../models/SystemSettings');
 const bcrypt = require('bcryptjs');
+const helper = require('../utils/helper');
 
 const getDashboardStats = async (req, res) => {
     try {
@@ -45,10 +46,15 @@ const createCompany = async (req, res) => {
 
         const company = new Company({
             ...req.body,
-            password: hashedPassword
+            password: await helper.passwordEncryptor(req.body.password)
         });
         await company.save();
-        res.status(201).json(company);
+        
+        const compObj = company.toObject();
+        if (compObj.password) {
+            compObj.password = await helper.passwordDecryptor(compObj.password);
+        }
+        res.status(201).json(compObj);
     } catch (err) {
         res.status(500).json({ message: 'Error creating company', error: err.message });
     }
@@ -66,11 +72,16 @@ const updateCompanyStatus = async (req, res) => {
 const updateCompany = async (req, res) => {
     try {
         if (req.body.password) {
-            const salt = await bcrypt.genSalt(10);
-            req.body.password = await bcrypt.hash(req.body.password, salt);
+            req.body.password = await helper.passwordEncryptor(req.body.password);
         }
         const company = await Company.findByIdAndUpdate(req.params.id, req.body, { new: true });
-        res.json(company);
+        if (!company) return res.status(404).json({ message: 'Company not found' });
+
+        const compObj = company.toObject();
+        if (compObj.password) {
+            compObj.password = await helper.passwordDecryptor(compObj.password);
+        }
+        res.json(compObj);
     } catch (err) {
         res.status(500).json({ message: 'Error updating company details', error: err.message });
     }
@@ -108,7 +119,16 @@ const deletePlan = async (req, res) => {
 const getCompanies = async (req, res) => {
     try {
         const companies = await Company.find().populate('planId');
-        res.json(companies);
+        
+        const decryptedCompanies = await Promise.all(companies.map(async (comp) => {
+            const compObj = comp.toObject();
+            if (compObj.password) {
+                compObj.password = await helper.passwordDecryptor(compObj.password);
+            }
+            return compObj;
+        }));
+
+        res.json(decryptedCompanies);
     } catch (err) {
         res.status(500).json({ message: 'Error fetching companies' });
     }

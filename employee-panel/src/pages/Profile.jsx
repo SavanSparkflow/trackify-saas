@@ -136,6 +136,15 @@ export default function Profile() {
                             />
                         </div>
 
+                        <div className="space-y-2 opacity-60">
+                            <label className="text-sm font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+                                <Building size={16} /> Monthly Salary (Read Only)
+                            </label>
+                            <div className="w-full px-5 py-3.5 bg-slate-100 rounded-2xl border border-slate-200 font-black text-blue-600">
+                                {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(user.monthlySalary || 0)}
+                            </div>
+                        </div>
+
                         <div className="md:col-span-2 pt-4">
                             <button
                                 type="submit"

@@ -39,6 +39,19 @@ export default function Attendance() {
             setLoading(false);
         }
     };
+    
+    const updateOTStatus = async (id, status) => {
+        try {
+            const token = localStorage.getItem('token');
+            await axios.put(`${import.meta.env.VITE_API_URL}/admin/overtime/${id}/status`, { status }, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            toast.success(`Overtime ${status.toLowerCase()} successfully`);
+            fetchAttendance();
+        } catch (err) {
+            toast.error(err.response?.data?.message || 'Failed to update status');
+        }
+    };
 
     const formatHours = (hours) => {
         if (!hours) return '00h 00m 00s';
@@ -101,13 +114,14 @@ export default function Attendance() {
                                 <th className="p-5">Locations</th>
                                 <th className="p-5">Work Hours</th>
                                 <th className="p-5">Status</th>
+                                <th className="p-5 text-right whitespace-nowrap">Overtime</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
                             {loading ? (
-                                <tr><td colSpan="6" className="p-8 text-center text-slate-500 font-medium tracking-wide">Loading attendance logs...</td></tr>
+                                <tr><td colSpan="7" className="p-8 text-center text-slate-500 font-medium tracking-wide">Loading attendance logs...</td></tr>
                             ) : records.length === 0 ? (
-                                <tr><td colSpan="6" className="p-8 text-center text-slate-500 font-medium tracking-wide">No attendance logs found.</td></tr>
+                                <tr><td colSpan="7" className="p-8 text-center text-slate-500 font-medium tracking-wide">No attendance logs found.</td></tr>
                             ) : records.map(r => (
                                 <tr key={r._id} className="hover:bg-slate-50/50 transition-colors">
                                     <td className="p-5 text-slate-500 font-semibold">{new Date(r.date).toLocaleDateString()}</td>
@@ -141,7 +155,6 @@ export default function Attendance() {
                                                     <MapPin size={16} />
                                                 </div>
                                             )}
-
                                             {r.locationOut?.lat ? (
                                                 <a
                                                     href={`https://www.google.com/maps?q=${r.locationOut.lat},${r.locationOut.lng}`}
@@ -162,7 +175,14 @@ export default function Attendance() {
                                             ) : null}
                                         </div>
                                     </td>
-                                    <td className="p-5 font-bold text-slate-700 tracking-tight">{formatHours(r.totalWorkHours)}</td>
+                                    <td className="p-5 font-bold text-slate-700 tracking-tight">
+                                        {formatHours(r.totalWorkHours)}
+                                        {r.lateBreakMinutes > 0 && (
+                                            <p className="text-[10px] font-black text-rose-500 uppercase tracking-tighter mt-1">
+                                                Late Break: -{r.lateBreakMinutes}m
+                                            </p>
+                                        )}
+                                    </td>
                                     <td className="p-5">
                                         <span className={`px-3 py-1 rounded-lg text-xs font-extrabold tracking-widest uppercase 
                       ${r.status === 'Present' ? 'bg-green-100 text-green-700' : ''}
@@ -171,6 +191,41 @@ export default function Attendance() {
                     `}>
                                             {r.status}
                                         </span>
+                                    </td>
+                                    <td className="p-5 text-right">
+                                        {r.overtime?.requested ? (
+                                            <div className="flex flex-col items-end gap-2">
+                                                {r.overtime.status === 'Pending' ? (
+                                                    <div className="flex gap-2">
+                                                        <button 
+                                                            onClick={() => updateOTStatus(r._id, 'Approved')}
+                                                            className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-[10px] font-black uppercase tracking-widest shadow-lg shadow-green-500/20 hover:bg-green-700 active:scale-95 transition-all"
+                                                        >
+                                                            Approve
+                                                        </button>
+                                                        <button 
+                                                            onClick={() => updateOTStatus(r._id, 'Rejected')}
+                                                            className="px-3 py-1.5 bg-rose-500 text-white rounded-lg text-[10px] font-black uppercase tracking-widest shadow-lg shadow-rose-500/20 hover:bg-rose-600 active:scale-95 transition-all"
+                                                        >
+                                                            Reject
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <span className={`px-3 py-1 rounded-lg text-[10px] font-black tracking-widest uppercase ${
+                                                        r.overtime.status === 'Approved' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-400'
+                                                    }`}>
+                                                        OT: {r.overtime.status}
+                                                    </span>
+                                                )}
+                                                {r.overtime.totalHours > 0 && (
+                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">
+                                                        Time: <span className="text-indigo-600 font-black">{formatHours(r.overtime.totalHours)}</span>
+                                                    </p>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <span className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">No Request</span>
+                                        )}
                                     </td>
                                 </tr>
                             ))}

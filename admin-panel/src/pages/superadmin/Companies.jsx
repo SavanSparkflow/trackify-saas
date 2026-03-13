@@ -103,7 +103,7 @@ export default function Companies() {
             companyEmail: company.companyEmail,
             ownerName: company.ownerName,
             ownerEmail: company.ownerEmail,
-            password: ''
+            password: company.password || ''
         });
         setModalMode('edit');
     };
@@ -232,10 +232,10 @@ export default function Companies() {
 
                             <div>
                                 <label className="block text-sm font-semibold text-slate-700 mb-1">
-                                    {modalMode === 'edit' ? 'New Password (Leave blank to keep current)' : 'Password'}
+                                    {modalMode === 'edit' ? 'New Password' : 'Password'}
                                 </label>
                                 <input
-                                    type="password"
+                                    type="text"
                                     name="password"
                                     value={formData.password}
                                     onChange={e => setFormData({ ...formData, password: e.target.value })}

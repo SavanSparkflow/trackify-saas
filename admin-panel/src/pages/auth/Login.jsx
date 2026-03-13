@@ -41,6 +41,7 @@ export default function Login() {
             localStorage.setItem('role', res.data.role);
             localStorage.setItem('token', res.data.token);
             localStorage.setItem('name', res.data.name); // Saving name for sidebar
+            localStorage.setItem('companyId', res.data.companyId);
 
             toast.success(`Welcome back, ${res.data.name}`);
 

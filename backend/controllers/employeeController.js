@@ -4,6 +4,8 @@ const User = require('../models/User');
 const Company = require('../models/Company');
 const { sendWhatsAppMessage } = require('../services/whatsappService');
 const { uploadToCloudinary } = require('../config/cloudinary');
+const { emitToCompany } = require('../utils/socket');
+const Notification = require('../models/Notification');
 const moment = require('moment');
 
 const getTodayRecord = async (userId) => {
@@ -142,6 +144,19 @@ const punchOut = async (req, res) => {
             openBreak.breakEnd = now;
             openBreak.duration = moment(now).diff(moment(openBreak.breakStart), 'minutes');
             attendance.totalBreakTime = (attendance.totalBreakTime || 0) + openBreak.duration;
+
+            // Late Break Penalty if closed at punch out
+            const company = await Company.findById(req.user.companyId);
+            if (company && company.lunchEndTime) {
+                const [leH, leM] = company.lunchEndTime.split(':').map(Number);
+                const lunchEndMoment = moment(now).set({ hour: leH, minute: leM, second: 0, millisecond: 0 });
+                if (moment(openBreak.breakStart).isBefore(lunchEndMoment) && moment(now).isAfter(lunchEndMoment)) {
+                    const lateMins = moment(now).diff(lunchEndMoment, 'minutes');
+                    if (lateMins > 0) {
+                        attendance.lateBreakMinutes = (attendance.lateBreakMinutes || 0) + lateMins;
+                    }
+                }
+            }
         }
 
         // Upload Punch Out photo if provided
@@ -155,12 +170,39 @@ const punchOut = async (req, res) => {
         attendance.punchOut = now;
         attendance.locationOut = location;
 
-        const grossMinutes = moment(now).diff(moment(attendance.punchIn), 'minutes');
-        const netMinutes = grossMinutes - (attendance.totalBreakTime || 0);
-        attendance.totalWorkHours = Math.max(0, netMinutes / 60);
-
         const user = await User.findById(userId);
         const company = await Company.findById(req.user.companyId);
+
+        // Calculate early punch-in adjustment
+        const shiftStartStr = user.shiftStart || company.openingTime || '09:00';
+        const [sH, sM] = shiftStartStr.split(':').map(Number);
+        const shiftStartMoment = moment(attendance.date).set({ hour: sH, minute: sM, second: 0, millisecond: 0 });
+
+        let effectivePunchIn = attendance.punchIn;
+        if (moment(attendance.punchIn).isBefore(shiftStartMoment)) {
+            effectivePunchIn = shiftStartMoment.toDate();
+        }
+
+        const grossMinutes = moment(now).diff(moment(effectivePunchIn), 'minutes');
+        const netMinutes = grossMinutes - (attendance.totalBreakTime || 0) - (attendance.lateBreakMinutes || 0);
+        attendance.totalWorkHours = Math.max(0, netMinutes / 60);
+
+        // Default thresholds (removed from Rule configuration)
+        const halfDayHrs = 4;
+        const fullDayHrs = 8;
+        const graceMins = company?.lateGracePeriod || 15;
+
+        // Determine status based on hours
+        if (attendance.totalWorkHours < halfDayHrs) {
+            attendance.status = 'Absent';
+        } else if (attendance.totalWorkHours < fullDayHrs) {
+            attendance.status = 'Half Day';
+        } else {
+            // Already set to Present or Late in punchIn, keep it unless it qualifies for Full Day now
+            if (attendance.status === 'Absent' || attendance.status === 'Half Day') {
+                attendance.status = 'Present';
+            }
+        }
 
         if (user && user.monthlySalary) {
             // Find expected net minutes
@@ -255,6 +297,22 @@ const breakEnd = async (req, res) => {
         openBreak.duration = moment(now).diff(moment(openBreak.breakStart), 'minutes');
         attendance.totalBreakTime = (attendance.totalBreakTime || 0) + openBreak.duration;
 
+        // Late Break Penalty Logic
+        const Company = require('../models/Company');
+        const company = await Company.findById(req.user.companyId);
+        if (company && company.lunchEndTime) {
+            const [leH, leM] = company.lunchEndTime.split(':').map(Number);
+            const lunchEndMoment = moment(now).set({ hour: leH, minute: leM, second: 0, millisecond: 0 });
+            
+            // If break started before/during lunch and ended after lunch
+            if (moment(openBreak.breakStart).isBefore(lunchEndMoment) && moment(now).isAfter(lunchEndMoment)) {
+                const lateMins = moment(now).diff(lunchEndMoment, 'minutes');
+                if (lateMins > 0) {
+                    attendance.lateBreakMinutes = (attendance.lateBreakMinutes || 0) + lateMins;
+                }
+            }
+        }
+
         await attendance.save();
 
         await notifyParent(userId, (user) => `Hello,\nYour child ${user.name} has:\n🔁 Ended Break at ${moment(now).format('hh:mm A')}\n- Trackify System`);
@@ -276,6 +334,27 @@ const applyLeave = async (req, res) => {
             reason
         });
         await leave.save();
+
+        const user = await User.findById(req.user.id);
+        
+        // Notify Admin via Socket (Admins join room named after companyId)
+        emitToUser(req.user.companyId, 'new_leave_request', {
+            employeeName: user.name,
+            startDate: startDate,
+            message: `${user.name} has applied for leave.`
+        });
+
+        // Save DB Notification for Admin (using companyId as the target ID for admin)
+        const adminNotification = new Notification({
+            userId: req.user.companyId, // Admins use companyId as their user ID
+            companyId: req.user.companyId,
+            title: '📅 New Leave Request',
+            message: `${user.name} applied for leave from ${new Date(startDate).toLocaleDateString()}.`,
+            type: 'leave',
+            link: '/leaves'
+        });
+        await adminNotification.save();
+
         res.status(201).json(leave);
     } catch (err) {
         res.status(500).json({ message: 'Error applying leave' });
@@ -295,6 +374,187 @@ const getLeaves = async (req, res) => {
     try {
         const leaves = await Leave.find({ userId: req.user.id }).sort({ startDate: -1 });
         res.json(leaves);
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+};
+
+const requestOvertime = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const { message } = req.body;
+        let attendance = await getTodayRecord(userId);
+
+        if (!attendance) {
+            const now = new Date();
+            attendance = new Attendance({
+                companyId: req.user.companyId,
+                userId,
+                date: now,
+                status: 'Absent'
+            });
+        }
+
+        attendance.overtime.requested = true;
+        attendance.overtime.message = message;
+        attendance.overtime.status = 'Pending';
+        await attendance.save();
+
+        const user = await User.findById(userId);
+        
+        const adminNotification = new Notification({
+            userId: req.user.companyId,
+            companyId: req.user.companyId,
+            title: '⏰ New Overtime Request',
+            message: `${user.name} has requested overtime: "${message}"`,
+            type: 'overtime',
+            link: '/attendance'
+        });
+        await adminNotification.save();
+
+        res.json({ message: 'Overtime request sent successfully', attendance });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+};
+
+const startOvertime = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const attendance = await getTodayRecord(userId);
+
+        if (!attendance || !attendance.overtime.requested) {
+            return res.status(400).json({ message: 'Please request overtime first.' });
+        }
+        if (!attendance.punchOut) {
+            return res.status(400).json({ message: 'Please punch out of your regular shift before starting overtime.' });
+        }
+        if (attendance.overtime.status !== 'Approved') {
+            return res.status(400).json({ message: 'Overtime is not approved yet.' });
+        }
+        if (attendance.overtime.startTime) {
+            return res.status(400).json({ message: 'Overtime already started.' });
+        }
+
+        const now = new Date();
+        attendance.overtime.startTime = now;
+
+        const company = await Company.findById(req.user.companyId);
+        const closingTime = company.closingTime || '18:00';
+        const [cH, cM] = closingTime.split(':').map(Number);
+        const closingMoment = moment(attendance.date).set({ hour: cH, minute: cM, second: 0, millisecond: 0 });
+
+        if (moment(now).isAfter(closingMoment)) {
+            const autoBreak = moment(now).diff(closingMoment, 'minutes');
+            attendance.overtime.autoBreakDuration = Math.max(0, autoBreak);
+        }
+
+        await attendance.save();
+        res.json({ message: 'Overtime started', attendance });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+};
+
+const endOvertime = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const attendance = await getTodayRecord(userId);
+
+        if (!attendance || !attendance.overtime.startTime) {
+            return res.status(400).json({ message: 'Overtime not started.' });
+        }
+        if (attendance.overtime.endTime) {
+            return res.status(400).json({ message: 'Overtime already ended.' });
+        }
+
+        const now = new Date();
+        attendance.overtime.endTime = now;
+
+        const openBreak = attendance.overtime.breaks.find(b => !b.breakEnd);
+        if (openBreak) {
+            openBreak.breakEnd = now;
+            openBreak.duration = moment(now).diff(moment(openBreak.breakStart), 'minutes');
+            attendance.overtime.breakDuration = (attendance.overtime.breakDuration || 0) + openBreak.duration;
+        }
+
+        const grossOTMins = moment(now).diff(moment(attendance.overtime.startTime), 'minutes');
+        const netOTMins = grossOTMins - (attendance.overtime.breakDuration || 0);
+        attendance.overtime.totalHours = Math.max(0, netOTMins / 60);
+
+        // Recalculate salary to include OT
+        const user = await User.findById(userId);
+        const company = await Company.findById(req.user.companyId);
+
+        if (user && user.monthlySalary) {
+             const currentMonthIdx = moment(attendance.date).month();
+             const workingDays = (company.monthlyWorkingDays && company.monthlyWorkingDays[currentMonthIdx]) || 26;
+             const dailyFullSalary = user.monthlySalary / workingDays;
+             
+             const shiftStartStr = user.shiftStart || company.openingTime || '09:00';
+             const shiftEndStr = company.closingTime || '18:00';
+             const [sH, sM] = shiftStartStr.split(':').map(Number);
+             const [eH, eM] = shiftEndStr.split(':').map(Number);
+             const expectedShiftMins = (eH * 60 + eM) - (sH * 60 + sM);
+
+             const lunchStartStr = company.lunchStartTime || '13:00';
+             const lunchEndStr = company.lunchEndTime || '14:00';
+             const [lsH, lsM] = lunchStartStr.split(':').map(Number);
+             const [leH, leM] = lunchEndStr.split(':').map(Number);
+             const lunchMins = (leH * 60 + leM) - (lsH * 60 + lsM);
+             const expectedNetMins = Math.max(1, expectedShiftMins - lunchMins);
+             const expectedHours = expectedNetMins / 60;
+
+             const totalHours = (attendance.totalWorkHours || 0) + (attendance.overtime.totalHours || 0);
+             const grossSalary = (dailyFullSalary / expectedHours) * totalHours;
+             attendance.earnedSalary = Math.round(Math.max(0, grossSalary - (attendance.penaltyAmount || 0)));
+        }
+
+        await attendance.save();
+        res.json({ message: 'Overtime ended', attendance });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+};
+
+const startOvertimeBreak = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const attendance = await getTodayRecord(userId);
+
+        if (!attendance || !attendance.overtime.startTime) return res.status(400).json({ message: 'Overtime not started.' });
+        if (attendance.overtime.endTime) return res.status(400).json({ message: 'Overtime already ended.' });
+
+        const openBreak = attendance.overtime.breaks.find(b => !b.breakEnd);
+        if (openBreak) return res.status(400).json({ message: 'Already on overtime break.' });
+
+        const now = new Date();
+        attendance.overtime.breaks.push({ breakStart: now });
+        await attendance.save();
+
+        res.json({ message: 'Overtime break started', attendance });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+};
+
+const endOvertimeBreak = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const attendance = await getTodayRecord(userId);
+
+        if (!attendance) return res.status(400).json({ message: 'No attendance record.' });
+
+        const openBreak = attendance.overtime.breaks.find(b => !b.breakEnd);
+        if (!openBreak) return res.status(400).json({ message: 'Not on overtime break.' });
+
+        const now = new Date();
+        openBreak.breakEnd = now;
+        openBreak.duration = moment(now).diff(moment(openBreak.breakStart), 'minutes');
+        attendance.overtime.breakDuration = (attendance.overtime.breakDuration || 0) + openBreak.duration;
+
+        await attendance.save();
+        res.json({ message: 'Overtime break ended', attendance });
     } catch (err) {
         res.status(500).json({ message: err.message });
     }
@@ -320,5 +580,10 @@ module.exports = {
     applyLeave,
     getHistory,
     getLeaves,
-    getCompanyHolidays
+    getCompanyHolidays,
+    requestOvertime,
+    startOvertime,
+    endOvertime,
+    startOvertimeBreak,
+    endOvertimeBreak
 };

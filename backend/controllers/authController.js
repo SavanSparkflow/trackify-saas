@@ -2,6 +2,7 @@ const User = require('../models/User');
 const Company = require('../models/Company');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
+const helper = require('../utils/helper');
 
 const generateToken = (id, role, companyId) => {
     return jwt.sign({ id, role, companyId }, process.env.JWT_SECRET || 'secret123', {
@@ -23,16 +24,13 @@ const registerCompany = async (req, res) => {
             return res.status(400).json({ message: 'Email already exists' });
         }
 
-        const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash(password, salt);
-
         const newCompany = new Company({
             companyName,
             companyEmail: companyEmail.toLowerCase(),
             ownerName,
             ownerEmail,
             role: req.body.role || 'admin',
-            password: hashedPassword,
+            password: await helper.passwordEncryptor(password),
             status: 'active'
         });
 
@@ -79,13 +77,10 @@ const registerEmployee = async (req, res) => {
             return res.status(400).json({ message: 'Invalid or inactive company selected' });
         }
 
-        const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash(password, salt);
-
         const newUser = new User({
             name,
             email,
-            password: hashedPassword,
+            password: await helper.passwordEncryptor(password),
             role: 'employee',
             companyId: validCompany._id,
             phone,
@@ -137,8 +132,13 @@ const loginUser = async (req, res) => {
             ]
         });
 
-        if (company && await bcrypt.compare(password, company.password)) {
-            isCompanyOwner = true;
+        if (company) {
+            const decPass = await helper.passwordDecryptor(company.password);
+            if (decPass === password) {
+                isCompanyOwner = true;
+            } else if (await bcrypt.compare(password, company.password)) {
+                isCompanyOwner = true;
+            }
         }
 
         let user;
@@ -147,9 +147,12 @@ const loginUser = async (req, res) => {
             if (!user) {
                 return res.status(401).json({ message: 'Invalid credentials' });
             }
-            const isMatch = await bcrypt.compare(password, user.password);
-            if (!isMatch) {
-                return res.status(401).json({ message: 'Invalid credentials' });
+            const decPass = await helper.passwordDecryptor(user.password);
+            if (decPass !== password) {
+                const isMatch = await bcrypt.compare(password, user.password);
+                if (!isMatch) {
+                    return res.status(401).json({ message: 'Invalid credentials' });
+                }
             }
         }
 

@@ -37,6 +37,7 @@ export default function Login() {
 
             localStorage.setItem('token', res.data.token);
             localStorage.setItem('name', res.data.name);
+            localStorage.setItem('companyId', res.data.companyId);
 
             toast.success(`Welcome back, ${res.data.name}`);
             navigate('/');

@@ -2,8 +2,12 @@ const User = require('../models/User');
 const Attendance = require('../models/Attendance');
 const Leave = require('../models/Leave');
 const Holiday = require('../models/Holiday');
+const Company = require('../models/Company');
+const Notification = require('../models/Notification');
+const { emitToUser } = require('../utils/socket');
 const bcrypt = require('bcryptjs');
 const { uploadToCloudinary } = require('../config/cloudinary');
+const helper = require('../utils/helper');
 
 const getAdminDashboard = async (req, res) => {
     try {
@@ -49,10 +53,15 @@ const addEmployee = async (req, res) => {
             email: req.body.email.toLowerCase().trim(),
             companyId: req.user.companyId,
             role: 'employee',
-            password: hashedPassword
+            password: await helper.passwordEncryptor(req.body.password)
         });
         await employee.save();
-        res.status(201).json(employee);
+        
+        const empObj = employee.toObject();
+        if (empObj.password) {
+            empObj.password = await helper.passwordDecryptor(empObj.password);
+        }
+        res.status(201).json(empObj);
     } catch (err) {
         if (err.code === 11000) {
             const field = Object.keys(err.keyValue)[0];
@@ -84,8 +93,17 @@ const getEmployees = async (req, res) => {
 
         const total = await User.countDocuments(query);
 
+        // Decrypt password for admin view
+        const decryptedEmployees = await Promise.all(employees.map(async (emp) => {
+            const empObj = emp.toObject();
+            if (empObj.password) {
+                empObj.password = await helper.passwordDecryptor(empObj.password);
+            }
+            return empObj;
+        }));
+
         res.json({
-            data: employees,
+            data: decryptedEmployees,
             total,
             page,
             totalPages: Math.ceil(total / limit)
@@ -100,8 +118,7 @@ const updateEmployee = async (req, res) => {
         const { password, ...updateData } = req.body;
 
         if (password) {
-            const salt = await bcrypt.genSalt(10);
-            updateData.password = await bcrypt.hash(password, salt);
+            updateData.password = await helper.passwordEncryptor(password);
         }
 
         if (updateData.email) {
@@ -116,6 +133,21 @@ const updateEmployee = async (req, res) => {
             updateData.attendancePhoto = currentAttendancePhoto;
         }
 
+        const existingEmployee = await User.findOne({ _id: req.params.id, companyId: req.user.companyId });
+        if (!existingEmployee) return res.status(404).json({ message: 'Employee not found' });
+
+        // Salary history tracking
+        if (updateData.monthlySalary && Number(updateData.monthlySalary) !== existingEmployee.monthlySalary) {
+            updateData.$push = {
+                salaryHistory: {
+                    oldSalary: existingEmployee.monthlySalary,
+                    newSalary: Number(updateData.monthlySalary),
+                    updatedBy: req.user.id,
+                    updatedAt: new Date()
+                }
+            };
+        }
+
         const employee = await User.findOneAndUpdate(
             { _id: req.params.id, companyId: req.user.companyId },
             updateData,
@@ -123,7 +155,12 @@ const updateEmployee = async (req, res) => {
         );
 
         if (!employee) return res.status(404).json({ message: 'Employee not found' });
-        res.json(employee);
+
+        const empObj = employee.toObject();
+        if (empObj.password) {
+            empObj.password = await helper.passwordDecryptor(empObj.password);
+        }
+        res.json(empObj);
     } catch (err) {
         if (err.code === 11000) {
             const field = Object.keys(err.keyValue)[0];
@@ -232,12 +269,39 @@ const getLeaves = async (req, res) => {
 }
 
 const updateLeaveStatus = async (req, res) => {
-    const leave = await Leave.findOneAndUpdate(
-        { _id: req.params.id, companyId: req.user.companyId },
-        { status: req.body.status },
-        { new: true }
-    );
-    res.json(leave);
+    try {
+        const leave = await Leave.findOneAndUpdate(
+            { _id: req.params.id, companyId: req.user.companyId },
+            { status: req.body.status },
+            { new: true }
+        );
+        
+        if (leave) {
+            const statusLabel = req.body.status === 'Approved' ? '✅ Approved' : (req.body.status === 'Rejected' ? '❌ Rejected' : req.body.status);
+            
+            // Create DB Notification
+            const notification = new Notification({
+                userId: leave.userId,
+                companyId: req.user.companyId,
+                title: `Leave ${req.body.status}`,
+                message: `Your leave request for ${new Date(leave.startDate).toLocaleDateString()} has been ${req.body.status.toLowerCase()}.`,
+                type: 'leave',
+                link: '/leaves'
+            });
+            await notification.save();
+
+            // Emit via Socket
+            emitToUser(leave.userId, 'notification', {
+                title: `Leave ${statusLabel}`,
+                message: `Your leave request has been ${req.body.status.toLowerCase()}.`,
+                type: 'leave'
+            });
+        }
+
+        res.json(leave);
+    } catch (err) {
+        res.status(500).json({ message: 'Error updating leave status' });
+    }
 }
 
 const getWeeklyStats = async (req, res) => {
@@ -301,9 +365,21 @@ const getReports = async (req, res) => {
             .populate('userId', 'name email phone parentPhone monthlySalary')
             .sort({ date: -1 });
 
+        // Decrypt password for reports view
+        const decryptedEmployees = await Promise.all(employees.map(async (emp) => {
+            const empObj = emp.toObject();
+            if (empObj.password) {
+                empObj.password = await helper.passwordDecryptor(empObj.password);
+            }
+            return empObj;
+        }));
+
+        const company = await Company.findById(companyId);
+
         res.json({
             attendance,
-            employees,
+            employees: decryptedEmployees,
+            company,
             total: totalEmployees,
             page: pageNum,
             totalPages: Math.ceil(totalEmployees / limitNum)
@@ -361,6 +437,44 @@ const deleteHoliday = async (req, res) => {
     }
 }
 
+const updateOvertimeStatus = async (req, res) => {
+    try {
+        const { status } = req.body;
+        const attendance = await Attendance.findOne({
+            _id: req.params.id,
+            companyId: req.user.companyId
+        });
+
+        if (!attendance) return res.status(404).json({ message: 'Attendance record not found' });
+
+        attendance.overtime.status = status;
+        attendance.overtime.approvedBy = req.user.id;
+        await attendance.save();
+
+        const statusLabel = status === 'Approved' ? '✅ Approved' : (status === 'Rejected' ? '❌ Rejected' : status);
+        
+        const notification = new Notification({
+            userId: attendance.userId,
+            companyId: req.user.companyId,
+            title: `Overtime ${status}`,
+            message: `Your overtime request for ${new Date(attendance.date).toLocaleDateString()} has been ${status.toLowerCase()}.`,
+            type: 'overtime',
+            link: '/dashboard'
+        });
+        await notification.save();
+
+        emitToUser(attendance.userId, 'notification', {
+            title: `Overtime ${statusLabel}`,
+            message: `Your overtime request has been ${status.toLowerCase()}.`,
+            type: 'overtime'
+        });
+
+        res.json({ message: `Overtime ${status.toLowerCase()} successfully`, attendance });
+    } catch (err) {
+        res.status(500).json({ message: 'Error updating overtime status' });
+    }
+}
+
 module.exports = {
     getAdminDashboard,
     addEmployee,
@@ -374,5 +488,6 @@ module.exports = {
     getReports,
     getHolidays,
     addHoliday,
-    deleteHoliday
+    deleteHoliday,
+    updateOvertimeStatus
 };

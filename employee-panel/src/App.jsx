@@ -10,6 +10,8 @@ import MyAttendance from './pages/MyAttendance';
 import LeaveHistory from './pages/LeaveHistory';
 import Profile from './pages/Profile';
 import Holidays from './pages/Holidays';
+import Rules from './pages/Rules';
+import Overtime from './pages/Overtime';
 
 function App() {
     return (
@@ -28,6 +30,8 @@ function App() {
                     <Route path="attendance" element={<MyAttendance />} />
                     <Route path="leaves" element={<LeaveHistory />} />
                     <Route path="holidays" element={<Holidays />} />
+                    <Route path="rules" element={<Rules />} />
+                    <Route path="overtime" element={<Overtime />} />
                     <Route path="profile" element={<Profile />} />
                 </Route>
 

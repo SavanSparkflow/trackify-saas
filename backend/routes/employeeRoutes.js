@@ -11,8 +11,15 @@ const {
     getHistory,
     getLeaves,
     getCloudinarySignature,
-    getCompanyHolidays
+    getCompanyHolidays,
+    requestOvertime,
+    startOvertime,
+    endOvertime,
+    startOvertimeBreak,
+    endOvertimeBreak
 } = require('../controllers/employeeController');
+const { getRules } = require('../controllers/ruleController');
+const { getNotifications, markAsRead, markAllAsRead, deleteNotification } = require('../controllers/notificationController');
 
 const router = express.Router();
 
@@ -25,8 +32,19 @@ router.post('/punch-out', punchOut);
 router.post('/break/start', breakStart);
 router.post('/break/end', breakEnd);
 router.post('/leave', applyLeave);
+router.post('/overtime/request', requestOvertime);
+router.post('/overtime/start', startOvertime);
+router.post('/overtime/end', endOvertime);
+router.post('/overtime/break/start', startOvertimeBreak);
+router.post('/overtime/break/end', endOvertimeBreak);
+
 router.get('/history', getHistory);
 router.get('/leaves', getLeaves);
 router.get('/holidays', getCompanyHolidays);
+router.get('/rules', getRules);
+router.get('/notifications', getNotifications);
+router.put('/notifications/:id/read', markAsRead);
+router.put('/notifications/read-all', markAllAsRead);
+router.delete('/notifications/:id', deleteNotification);
 
 module.exports = router;

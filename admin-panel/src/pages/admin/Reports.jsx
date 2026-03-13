@@ -10,17 +10,16 @@ export default function Reports() {
 
     const [month, setMonth] = useState(new Date().getMonth() + 1);
     const [year, setYear] = useState(new Date().getFullYear());
-    const [employeeId, setEmployeeId] = useState('');
     const [summary, setSummary] = useState([]);
 
     // Pagination State
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
-    const itemsPerPage = 5;
+    const itemsPerPage = 10;
 
     useEffect(() => {
         fetchReports();
-    }, [month, year, employeeId, currentPage]);
+    }, [month, year, currentPage]);
 
     const fetchReports = async () => {
         setLoading(true);
@@ -31,7 +30,6 @@ export default function Reports() {
                 params: {
                     month,
                     year,
-                    employeeId: employeeId || undefined,
                     page: currentPage,
                     limit: itemsPerPage
                 }
@@ -42,11 +40,18 @@ export default function Reports() {
             // Generate Summary per employee
             const formattedSummary = employees.map(emp => {
                 const empAttendance = attendance.filter(a => a.userId?._id === emp._id);
-                const totalDays = empAttendance.length;
                 const totalLate = empAttendance.filter(a => a.status === 'Late').length;
                 const totalAbsent = empAttendance.filter(a => a.status === 'Absent').length;
+                const totalLeave = empAttendance.filter(a => a.status === 'On Leave').length;
+                const totalHalfDay = empAttendance.filter(a => a.status === 'Half Day').length;
+                const totalPresent = empAttendance.filter(a => a.status === 'Present').length;
+                
+                // Days Worked Calculation
+                const daysWorked = totalPresent + totalLate + (totalHalfDay * 0.5);
+                
                 const totalSalary = empAttendance.reduce((sum, a) => sum + (a.earnedSalary || 0), 0);
                 const totalWorkHoursDec = empAttendance.reduce((sum, a) => sum + (a.totalWorkHours || 0), 0);
+                const totalOTHoursDec = empAttendance.reduce((sum, a) => sum + (a.overtime?.totalHours || 0), 0);
 
                 const formatTime = (decimalHours) => {
                     if (!decimalHours) return "00h 00m 00s";
@@ -57,14 +62,21 @@ export default function Reports() {
                     return `${String(h).padStart(2, '0')}h ${String(m).padStart(2, '0')}m ${String(s).padStart(2, '0')}s`;
                 };
 
+                const currentMonthWorkingDays = res.data.company?.monthlyWorkingDays?.[month - 1] || 26;
+
                 return {
                     ...emp,
-                    totalDays,
+                    workingDays: currentMonthWorkingDays,
+                    daysWorked,
                     totalLate,
                     totalAbsent,
-                    totalSalary: totalSalary, // keep as number for formatting later if needed
+                    totalLeave,
+                    totalHalfDay,
+                    totalSalary: totalSalary,
                     formattedSalary: new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(totalSalary),
-                    totalWorkHoursStr: formatTime(totalWorkHoursDec),
+                    totalWorkHoursStr: formatTime(totalWorkHoursDec + totalOTHoursDec),
+                    totalShiftHoursStr: formatTime(totalWorkHoursDec),
+                    totalOTHoursStr: formatTime(totalOTHoursDec),
                     records: empAttendance
                 };
             });
@@ -83,7 +95,7 @@ export default function Reports() {
         const phone = emp.phone ? emp.phone.replace(/\D/g, '') : '';
         if (!phone) return toast.error("Employee has no phone number");
 
-        const message = `Hello ${emp.name},\nHere is your full attendance report for ${month}/${year}:\n\n- Days Present: ${emp.totalDays}\n- Late Days: ${emp.totalLate}\n- Absent: ${emp.totalAbsent}\n- Total Work Hours: ${emp.totalWorkHoursStr}\n\n*Total Earned Salary:* ${emp.formattedSalary}\n\nThank you,\nTrackify System`;
+        const message = `Hello ${emp.name},\nHere is your full attendance report for ${month}/${year}:\n\n📅 *Working Days:* ${emp.workingDays}\n✅ *Days Worked:* ${emp.daysWorked}\n⏰ *Late Days:* ${emp.totalLate}\n❌ *Absent Days:* ${emp.totalAbsent}\n⏳ *Total Work Hours:* ${emp.totalWorkHoursStr}\n\n💰 *Total Earned Salary:* ${emp.formattedSalary}\n\nThank you,\nTrackify System`;
 
         let formattedPhone = phone;
         if (formattedPhone.length === 10) formattedPhone = `91${formattedPhone}`; // Assume India
@@ -94,33 +106,45 @@ export default function Reports() {
 
     const handleDownloadCSV = (emp) => {
         let csvContent = "data:text/csv;charset=utf-8,";
-        csvContent += "Date,Punch In,Break In,Break Out,Punch Out,Status,Total Hours,Earned Salary\n";
+        csvContent += "Date,Punch In,Punch Out,Status,Shift Hours,OT Start,OT End,OT Hours,Total Hours,Salary\n";
 
-        emp.records.forEach(r => {
-            const date = new Date(r.date).toLocaleDateString('en-GB'); // Use simple DD/MM/YYYY to avoid Excel issues
-            const pIn = r.punchIn ? new Date(r.punchIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--';
+        const daysInMonth = new Date(year, month, 0).getDate();
+        let totalOT = 0;
+        let totalShift = 0;
+        let totalSalary = 0;
 
-            const bIn = r.breaks && r.breaks.length > 0 && r.breaks[0].breakStart
-                ? new Date(r.breaks[0].breakStart).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--';
-            const bOut = r.breaks && r.breaks.length > 0 && r.breaks[0].breakEnd
-                ? new Date(r.breaks[0].breakEnd).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--';
+        for (let d = 1; d <= 31; d++) {
+            if (d > daysInMonth) {
+                csvContent += `"${d}/${month}/${year}","--","--","--","0","--","--","0","0","0"\n`;
+                continue;
+            }
+            const record = emp.records.find(r => new Date(r.date).getDate() === d);
+            const date = `${d}/${month}/${year}`;
 
-            const pOut = r.punchOut ? new Date(r.punchOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--';
-            const status = r.status;
+            if (record) {
+                const pIn = record.punchIn ? new Date(record.punchIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--';
+                const pOut = record.punchOut ? new Date(record.punchOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--';
+                const otStart = record.overtime?.startTime ? new Date(record.overtime.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--';
+                const otEnd = record.overtime?.endTime ? new Date(record.overtime.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--';
+                
+                const shiftHrs = record.totalWorkHours || 0;
+                const otHrs = record.overtime?.totalHours || 0;
+                const totalHrs = shiftHrs + otHrs;
 
-            const formatTime = (decimalHours) => {
-                if (!decimalHours) return "00h 00m 00s";
-                const totalSecs = Math.round(decimalHours * 3600);
-                const h = Math.floor(totalSecs / 3600);
-                const m = Math.floor((totalSecs % 3600) / 60);
-                const s = totalSecs % 60;
-                return `${String(h).padStart(2, '0')}h ${String(m).padStart(2, '0')}m ${String(s).padStart(2, '0')}s`;
-            };
-            const hoursStr = formatTime(r.totalWorkHours);
-            const salary = r.earnedSalary ? `₹${r.earnedSalary.toFixed(2)}` : '₹0.00';
+                totalOT += otHrs;
+                totalShift += shiftHrs;
+                totalSalary += (record.earnedSalary || 0);
 
-            csvContent += `"${date}","${pIn}","${bIn}","${bOut}","${pOut}","${status}","${hoursStr}","${salary}"\n`;
-        });
+                csvContent += `"${date}","${pIn}","${pOut}","${record.status}","${shiftHrs.toFixed(2)}","${otStart}","${otEnd}","${otHrs.toFixed(2)}","${totalHrs.toFixed(2)}","${record.earnedSalary || 0}"\n`;
+            } else {
+                csvContent += `"${date}","--","--","Absent","0","--","--","0","0","0"\n`;
+            }
+        }
+
+        // Add summary at line 33 (Row 33 in Excel, after 1 header and 31 days)
+        csvContent += `\n"SUMMARY",,,,,"TOTAL WORKING DAYS","${emp.daysWorked}","TOTAL OT HOURS","${totalOT.toFixed(2)}"\n`;
+        csvContent += `,,,,,,"TOTAL WORKING HOURS","${(totalShift + totalOT).toFixed(2)}","TOTAL ABSENT","${emp.totalAbsent}"\n`;
+        csvContent += `,,,,,,"TOTAL LEAVE","${emp.totalLeave}","TOTAL SALARY","${totalSalary.toFixed(2)}"\n`;
 
         const encodedUri = encodeURI(csvContent);
         const link = document.createElement("a");
@@ -138,7 +162,7 @@ export default function Reports() {
     // Reset to first page on month/year/employee change
     useEffect(() => {
         setCurrentPage(1);
-    }, [month, year, employeeId]);
+    }, [month, year]);
 
     const currentSummary = summary; // Already paginated by backend
 
@@ -194,25 +218,30 @@ export default function Reports() {
                                         </button>
                                     </div>
                                 </div>
-                                <div className="grid grid-cols-2 md:grid-cols-5 divide-x divide-slate-100 border-b border-slate-100">
+                                <div className="grid grid-cols-2 md:grid-cols-6 divide-x divide-slate-100 border-b border-slate-100">
+                                    <div className="p-4 text-center bg-slate-50/50">
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Working Days</p>
+                                        <p className="text-xl font-black text-slate-600">{emp.workingDays}</p>
+                                    </div>
                                     <div className="p-4 text-center bg-blue-50/50">
-                                        <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Present</p>
-                                        <p className="text-2xl font-black text-blue-600">{emp.totalDays}</p>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Days Worked</p>
+                                        <p className="text-xl font-black text-blue-600">{emp.daysWorked}</p>
                                     </div>
                                     <div className="p-4 text-center bg-amber-50/50">
-                                        <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Late</p>
-                                        <p className="text-2xl font-black text-amber-600">{emp.totalLate}</p>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Late</p>
+                                        <p className="text-xl font-black text-amber-600">{emp.totalLate}</p>
                                     </div>
                                     <div className="p-4 text-center bg-rose-50/50">
-                                        <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Absent</p>
-                                        <p className="text-2xl font-black text-rose-600">{emp.totalAbsent}</p>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Absent</p>
+                                        <p className="text-xl font-black text-rose-600">{emp.totalAbsent}</p>
                                     </div>
                                     <div className="p-4 text-center bg-indigo-50/50">
-                                        <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Total Hours</p>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total Hours</p>
                                         <p className="text-sm font-black text-indigo-600 mt-2">{emp.totalWorkHoursStr}</p>
+                                        <p className="text-[9px] font-bold text-slate-400 mt-1">OT: {emp.totalOTHoursStr}</p>
                                     </div>
                                     <div className="p-4 text-center bg-green-50/50">
-                                        <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Earned</p>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Earned</p>
                                         <p className="text-lg font-black text-green-600 mt-2">{emp.formattedSalary}</p>
                                     </div>
                                 </div>

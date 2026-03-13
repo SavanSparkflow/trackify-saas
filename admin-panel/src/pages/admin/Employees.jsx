@@ -17,6 +17,7 @@ export default function Employees() {
         employeeId: '',
         department: '',
         shiftStart: '09:00',
+        shiftEnd: '18:00',
         latePenaltyRate: 0,
         monthlySalary: 0,
         attendancePhoto: ''
@@ -81,12 +82,13 @@ export default function Employees() {
         setFormData({
             name: employee.name,
             email: employee.email,
-            password: '', // Keep empty for security unless they want to change it
+            password: employee.password || '', 
             phone: employee.phone || '',
             parentPhone: employee.parentPhone || '',
             employeeId: employee.employeeId || '',
             department: employee.department || '',
             shiftStart: employee.shiftStart || '09:00',
+            shiftEnd: employee.shiftEnd || '18:00',
             latePenaltyRate: employee.latePenaltyRate || 0,
             monthlySalary: employee.monthlySalary || 0,
             attendancePhoto: employee.attendancePhoto || ''
@@ -131,7 +133,7 @@ export default function Employees() {
                         setEditingId(null);
                         setFormData({
                             name: '', email: '', password: '', phone: '', parentPhone: '',
-                            employeeId: '', department: '', shiftStart: '09:00',
+                            employeeId: '', department: '', shiftStart: '09:00', shiftEnd: '18:00',
                             latePenaltyRate: 0, monthlySalary: 0, attendancePhoto: ''
                         });
                         setShowModal(true);
@@ -193,7 +195,7 @@ export default function Employees() {
                                         </div>
                                     </td>
                                     <td className="p-5">
-                                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Shift: <span className="text-slate-700">{e.shiftStart || '09:00'}</span></p>
+                                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Shift: <span className="text-slate-700">{e.shiftStart || '09:00'} - {e.shiftEnd || '18:00'}</span></p>
                                         <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Salary: <span className="text-slate-700">{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(e.monthlySalary || 0)}/mo</span></p>
                                     </td>
                                     <td className="p-5">
@@ -247,8 +249,8 @@ export default function Employees() {
                                     <input type="text" value={formData.employeeId} required onChange={e => setFormData({ ...formData, employeeId: e.target.value })} className="w-full px-4 py-3 bg-slate-50 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 font-medium" placeholder="EMP001" />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-bold text-slate-700 uppercase tracking-wider mb-1">Password {editingId && '(Leave blank to keep current)'}</label>
-                                    <input type="password" required={!editingId} onChange={e => setFormData({ ...formData, password: e.target.value })} className="w-full px-4 py-3 bg-slate-50 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 font-medium" placeholder="••••••" />
+                                    <label className="block text-sm font-bold text-slate-700 uppercase tracking-wider mb-1">Password</label>
+                                    <input type="text" value={formData.password} required={!editingId} onChange={e => setFormData({ ...formData, password: e.target.value })} className="w-full px-4 py-3 bg-slate-50 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 font-medium" placeholder="••••••" />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-bold text-slate-700 uppercase tracking-wider mb-1">Department</label>
@@ -257,6 +259,10 @@ export default function Employees() {
                                 <div>
                                     <label className="block text-sm font-bold text-slate-700 uppercase tracking-wider mb-1">Shift Start Time</label>
                                     <input type="time" value={formData.shiftStart} onChange={e => setFormData({ ...formData, shiftStart: e.target.value })} className="w-full px-4 py-3 bg-slate-50 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold text-slate-700 uppercase tracking-wider mb-1">Shift End Time</label>
+                                    <input type="time" value={formData.shiftEnd} onChange={e => setFormData({ ...formData, shiftEnd: e.target.value })} className="w-full px-4 py-3 bg-slate-50 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700" />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-bold text-slate-700 uppercase tracking-wider mb-1">Monthly Salary (₹)</label>

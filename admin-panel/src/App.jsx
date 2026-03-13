@@ -20,6 +20,8 @@ import Profile from './pages/admin/Profile';
 import Settings from './pages/admin/Settings';
 import Reports from './pages/admin/Reports';
 import Holidays from './pages/admin/Holidays';
+import Rules from './pages/admin/Rules';
+import Payroll from './pages/admin/Payroll';
 
 function App() {
     return (
@@ -55,6 +57,8 @@ function App() {
                     <Route path="leaves" element={<Leaves />} />
                     <Route path="reports" element={<Reports />} />
                     <Route path="holidays" element={<Holidays />} />
+                    <Route path="rules" element={<Rules />} />
+                    <Route path="payroll" element={<Payroll />} />
                     <Route path="profile" element={<Profile />} />
                     <Route path="settings" element={<Settings />} />
                 </Route>

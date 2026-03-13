@@ -46,6 +46,7 @@ export default function Register() {
             localStorage.setItem('role', res.data.role);
             localStorage.setItem('token', res.data.token);
             localStorage.setItem('name', res.data.name);
+            localStorage.setItem('companyId', res.data.companyId);
             toast.success(res.data.message);
 
             if (res.data.role === 'superadmin') {

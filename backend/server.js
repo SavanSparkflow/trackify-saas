@@ -24,19 +24,31 @@ app.get("/", (req, res) => {
     res.send("Server is Live (HTTP)!");
 });
 
+app.get("/api/test-route", (req, res) => {
+    res.json({ message: "Test route works!" });
+});
+
 app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/superadmin', require('./routes/superAdminRoutes'));
+console.log('Mounting Admin Routes...');
 app.use('/api/admin', require('./routes/adminRoutes'));
+console.log('Mounting Employee Routes...');
 app.use('/api/employee', require('./routes/employeeRoutes'));
 
 mongoose.connect(process.env.MONGO_URI || '', {
 }).then(() => console.log('MongoDB Connected'))
     .catch(err => console.log('DB Connection Error:', err));
 
+const http = require('http');
+const { initSocket } = require('./utils/socket');
+
+const server = http.createServer(app);
+initSocket(server);
+
 require('./cron/attendanceCron')();
 
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, '0.0.0.0', () => {
+server.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Server running on port ${PORT} (HTTP)`);
 });
