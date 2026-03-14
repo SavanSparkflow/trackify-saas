@@ -20,7 +20,8 @@ export default function Employees() {
         shiftEnd: '18:00',
         latePenaltyRate: 0,
         monthlySalary: 0,
-        attendancePhoto: ''
+        attendancePhoto: '',
+        dob: ''
     });
     const [searchTerm, setSearchTerm] = useState('');
     const [editingId, setEditingId] = useState(null);
@@ -91,7 +92,8 @@ export default function Employees() {
             shiftEnd: employee.shiftEnd || '18:00',
             latePenaltyRate: employee.latePenaltyRate || 0,
             monthlySalary: employee.monthlySalary || 0,
-            attendancePhoto: employee.attendancePhoto || ''
+            attendancePhoto: employee.attendancePhoto || '',
+            dob: employee.dob ? new Date(employee.dob).toISOString().split('T')[0] : ''
         });
         setShowModal(true);
     };
@@ -134,7 +136,7 @@ export default function Employees() {
                         setFormData({
                             name: '', email: '', password: '', phone: '', parentPhone: '',
                             employeeId: '', department: '', shiftStart: '09:00', shiftEnd: '18:00',
-                            latePenaltyRate: 0, monthlySalary: 0, attendancePhoto: ''
+                            latePenaltyRate: 0, monthlySalary: 0, attendancePhoto: '', dob: ''
                         });
                         setShowModal(true);
                     }}
@@ -251,6 +253,10 @@ export default function Employees() {
                                 <div>
                                     <label className="block text-sm font-bold text-slate-700 uppercase tracking-wider mb-1">Password</label>
                                     <input type="text" value={formData.password} required={!editingId} onChange={e => setFormData({ ...formData, password: e.target.value })} className="w-full px-4 py-3 bg-slate-50 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 font-medium" placeholder="••••••" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold text-slate-700 uppercase tracking-wider mb-1">Date of Birth</label>
+                                    <input type="date" value={formData.dob} onChange={e => setFormData({ ...formData, dob: e.target.value })} className="w-full px-4 py-3 bg-slate-50 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 font-medium" />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-bold text-slate-700 uppercase tracking-wider mb-1">Department</label>

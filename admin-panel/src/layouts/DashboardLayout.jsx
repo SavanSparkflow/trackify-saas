@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import {
     LayoutDashboard, Building2, CreditCard, BarChart3, Settings,
-    Users, CalendarCheck, FileText, LogOut, Clock, Menu, X, CalendarHeart, Gavel, Bell
+    Users, CalendarCheck, FileText, LogOut, Clock, Menu, X, CalendarHeart, Gavel, Bell, CalendarDays
 } from 'lucide-react';
 import { useEffect } from 'react';
 import { io } from 'socket.io-client';
@@ -192,6 +192,7 @@ export default function DashboardLayout({ role }) {
         { to: "/admin/attendance", icon: CalendarCheck, label: "Attendance" },
         { to: "/admin/leaves", icon: FileText, label: "Leaves" },
         { to: "/admin/holidays", icon: CalendarHeart, label: "Holidays" },
+        { to: "/admin/events", icon: CalendarDays, label: "Events" },
         { to: "/admin/payroll", icon: CreditCard, label: "Payroll" },
         { to: "/admin/rules", icon: Gavel, label: "Rules & Reg." },
         { to: "/admin/reports", icon: BarChart3, label: "Reports" },

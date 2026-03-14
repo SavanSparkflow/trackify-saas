@@ -9,6 +9,7 @@ export default function Holidays() {
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
     const [formData, setFormData] = useState({ name: '', date: '' });
+    const [holidayConfig, setHolidayConfig] = useState('all-sundays');
 
     // Pagination State
     const [currentPage, setCurrentPage] = useState(1);
@@ -17,7 +18,33 @@ export default function Holidays() {
 
     useEffect(() => {
         fetchHolidays();
+        fetchHolidayConfig();
     }, [currentPage]);
+
+    const fetchHolidayConfig = async () => {
+        try {
+            const token = localStorage.getItem('token');
+            const res = await axios.get(`${import.meta.env.VITE_API_URL}/admin/holiday-config`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            setHolidayConfig(res.data.holidayConfig || 'all-sundays');
+        } catch (err) {
+            console.error('Failed to load holiday config');
+        }
+    };
+
+    const updateHolidayConfig = async (newConfig) => {
+        try {
+            const token = localStorage.getItem('token');
+            await axios.put(`${import.meta.env.VITE_API_URL}/admin/holiday-config`, { holidayConfig: newConfig }, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            setHolidayConfig(newConfig);
+            toast.success('Holiday policy updated');
+        } catch (err) {
+            toast.error('Failed to update policy');
+        }
+    };
 
     const fetchHolidays = async () => {
         try {
@@ -89,6 +116,36 @@ export default function Holidays() {
                 >
                     <Plus size={20} /> Add Holiday
                 </button>
+            </div>
+
+            {/* Weekend Policy Section */}
+            <div className="bg-white p-6 rounded-3xl shadow-xl border border-slate-100 mb-8">
+                <h2 className="text-xl font-black text-slate-800 mb-4 flex items-center gap-2">
+                    <CalendarHeart className="text-rose-500" size={24} /> Weekend Holiday Policy
+                </h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {[
+                        { id: 'all-sundays', label: 'Only Sundays Off', desc: 'Every Sunday' },
+                        { id: 'all-saturdays-sundays', label: 'Sat & Sun Off', desc: 'Full Weekends' },
+                        { id: '1-3-saturdays', label: '1st & 3rd Sat Off', desc: 'Plus All Sundays' },
+                        { id: '2-4-saturdays', label: '2nd & 4th Sat Off', desc: 'Plus All Sundays' },
+                    ].map((policy) => (
+                        <div
+                            key={policy.id}
+                            onClick={() => updateHolidayConfig(policy.id)}
+                            className={`p-4 rounded-2xl border-2 cursor-pointer transition-all ${
+                                holidayConfig === policy.id
+                                    ? 'border-blue-500 bg-blue-50'
+                                    : 'border-slate-100 hover:border-blue-200'
+                            }`}
+                        >
+                            <p className={`font-black ${holidayConfig === policy.id ? 'text-blue-700' : 'text-slate-700'}`}>
+                                {policy.label}
+                            </p>
+                            <p className="text-xs text-slate-500 font-medium">{policy.desc}</p>
+                        </div>
+                    ))}
+                </div>
             </div>
 
             <div className="bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden mt-6">

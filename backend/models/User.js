@@ -11,6 +11,7 @@ const userSchema = new mongoose.Schema({
 
     phone: { type: String },
     parentPhone: { type: String },
+    dob: { type: Date }, // Date of birth for birthday notifications
 
     department: { type: String },
     employeeId: { type: String },

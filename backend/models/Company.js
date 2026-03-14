@@ -23,7 +23,12 @@ const companySchema = new mongoose.Schema({
     lunchStartTime: { type: String, default: '13:00' },
     lunchEndTime: { type: String, default: '14:00' },
     lateGracePeriod: { type: Number, default: 15 },
-    monthlyWorkingDays: { type: [Number], default: [26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26] } // Array of 12 values for Jan to Dec
+    monthlyWorkingDays: { type: [Number], default: [26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26] }, // Array of 12 values for Jan to Dec
+    holidayConfig: {
+        type: String,
+        enum: ['all-sundays', 'all-saturdays-sundays', '1-3-saturdays', '2-4-saturdays'],
+        default: 'all-sundays'
+    }
 }, { timestamps: true });
 
 module.exports = mongoose.model('Company', companySchema);

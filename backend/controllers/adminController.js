@@ -489,5 +489,26 @@ module.exports = {
     getHolidays,
     addHoliday,
     deleteHoliday,
-    updateOvertimeStatus
+    updateOvertimeStatus,
+    getHolidayConfig: async (req, res) => {
+        try {
+            const company = await Company.findById(req.user.companyId).select('holidayConfig');
+            res.json(company);
+        } catch (err) {
+            res.status(500).json({ message: 'Error fetching holiday config' });
+        }
+    },
+    updateHolidayConfig: async (req, res) => {
+        try {
+            const { holidayConfig } = req.body;
+            const company = await Company.findByIdAndUpdate(
+                req.user.companyId,
+                { holidayConfig },
+                { new: true }
+            ).select('holidayConfig');
+            res.json(company);
+        } catch (err) {
+            res.status(500).json({ message: 'Error updating holiday config' });
+        }
+    }
 };

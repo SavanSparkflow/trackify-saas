@@ -15,7 +15,9 @@ const {
     getHolidays,
     addHoliday,
     deleteHoliday,
-    updateOvertimeStatus
+    updateOvertimeStatus,
+    getHolidayConfig,
+    updateHolidayConfig
 } = require('../controllers/adminController');
 const { getRules, addRule, updateRule, deleteRule } = require('../controllers/ruleController');
 const { getNotifications, markAsRead, markAllAsRead, deleteNotification } = require('../controllers/notificationController');
@@ -38,6 +40,8 @@ router.patch('/leaves/:id/status', updateLeaveStatus);
 router.get('/holidays', getHolidays);
 router.post('/holidays', addHoliday);
 router.delete('/holidays/:id', deleteHoliday);
+router.get('/holiday-config', getHolidayConfig);
+router.put('/holiday-config', updateHolidayConfig);
 router.put('/overtime/:id/status', updateOvertimeStatus);
 
 router.get('/rules', getRules);

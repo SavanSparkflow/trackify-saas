@@ -22,6 +22,38 @@ const SidebarLink = ({ to, icon: Icon, label, onClick }) => (
     </NavLink>
 );
 
+const WANotificationToast = ({ t, title, message, type }) => (
+    <div className={`${t.visible ? 'animate-toast-in' : 'animate-toast-out'} max-w-md w-full bg-white shadow-2xl rounded-3xl pointer-events-auto flex ring-1 ring-black ring-opacity-5 p-4 border-l-[6px] border-[#25D366] transition-all duration-300`}>
+        <div className="flex-1 w-0">
+            <div className="flex items-start">
+                <div className="flex-shrink-0 pt-0.5">
+                    <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-[#25D366] to-[#128C7E] flex items-center justify-center shadow-lg shadow-green-200">
+                        {type === 'leave' ? <FileText className="text-white" size={24} /> : 
+                         type === 'rule' ? <Gavel className="text-white" size={24} /> : 
+                         <Bell className="text-white" size={24} />}
+                    </div>
+                </div>
+                <div className="ml-4 flex-1">
+                    <div className="flex items-center justify-between">
+                        <p className="text-sm font-black text-slate-800 uppercase tracking-tight">Trackify Notify</p>
+                        <p className="text-[10px] font-bold text-slate-400">Just Now</p>
+                    </div>
+                    <p className="mt-1 text-sm font-black text-slate-900 leading-tight">{title}</p>
+                    <p className="mt-1 text-xs font-medium text-slate-500 line-clamp-2">{message}</p>
+                </div>
+            </div>
+        </div>
+        <div className="ml-4 flex-shrink-0 flex">
+            <button
+                onClick={() => toast.dismiss(t.id)}
+                className="w-full border border-transparent rounded-none rounded-r-lg p-2 flex items-center justify-center text-sm font-medium text-slate-400 hover:text-slate-600 focus:outline-none"
+            >
+                <X size={20} />
+            </button>
+        </div>
+    </div>
+);
+
 export default function EmployeeLayout() {
     const navigate = useNavigate();
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -70,19 +102,25 @@ export default function EmployeeLayout() {
         };
 
         socket.on('new_rule', (data) => {
-            toast.success(`📢 New Rule: ${data.title}`, { duration: 5000 });
+            toast.custom((t) => (
+                <WANotificationToast t={t} title="New Company Rule" message={data.title} type="rule" />
+            ), { duration: 6000 });
             showBrowserNotification('📜 New Company Rule', data.title);
             fetchNotifications();
         });
 
         socket.on('rule_updated', (data) => {
-            toast.success(`📜 Rule Updated: ${data.title}`, { duration: 5000 });
+            toast.custom((t) => (
+                <WANotificationToast t={t} title="Rule Updated" message={data.title} type="rule" />
+            ), { duration: 6000 });
             showBrowserNotification('⚖️ Rule Updated', data.title);
             fetchNotifications();
         });
 
         socket.on('notification', (data) => {
-            toast.success(`${data.title}: ${data.message}`, { duration: 5000 });
+            toast.custom((t) => (
+                <WANotificationToast t={t} title={data.title} message={data.message} type={data.type} />
+            ), { duration: 6000 });
             showBrowserNotification(data.title, data.message);
             fetchNotifications();
         });

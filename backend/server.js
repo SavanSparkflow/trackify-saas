@@ -24,16 +24,13 @@ app.get("/", (req, res) => {
     res.send("Server is Live (HTTP)!");
 });
 
-app.get("/api/test-route", (req, res) => {
-    res.json({ message: "Test route works!" });
-});
-
 app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/superadmin', require('./routes/superAdminRoutes'));
 console.log('Mounting Admin Routes...');
 app.use('/api/admin', require('./routes/adminRoutes'));
 console.log('Mounting Employee Routes...');
 app.use('/api/employee', require('./routes/employeeRoutes'));
+app.use('/api/events', require('./routes/eventRoutes'));
 
 mongoose.connect(process.env.MONGO_URI || '', {
 }).then(() => console.log('MongoDB Connected'))
@@ -46,6 +43,7 @@ const server = http.createServer(app);
 initSocket(server);
 
 require('./cron/attendanceCron')();
+require('./cron/birthdayCron')();
 
 const PORT = process.env.PORT || 5000;
 

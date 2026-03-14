@@ -335,7 +335,7 @@ export default function Dashboard() {
             <div className="bg-gradient-to-br from-blue-600 to-indigo-700 rounded-3xl p-8 text-white shadow-xl relative overflow-hidden">
                 <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 rounded-full border-8 border-white opacity-10 blur-xl"></div>
                 <div className="absolute bottom-0 left-0 -ml-16 -mb-16 w-48 h-48 rounded-full border-8 border-white opacity-10 blur-xl"></div>
-                <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-6">
+                <div className="relative z-[9] flex flex-col md:flex-row items-center justify-between gap-6">
                     <div className="text-center md:text-left">
                         <h1 className="text-3xl font-extrabold tracking-tight mb-2">Good Morning, {name}</h1>
                         <p className="text-blue-100 font-medium tracking-wide">Shift Target: {company?.openingTime || '--:--'} to {company?.closingTime || '--:--'}</p>

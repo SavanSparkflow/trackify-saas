@@ -46,28 +46,13 @@ export default function Rules() {
             ) : (
                 <div className="space-y-6">
                     {rules.map(rule => (
-                        <div key={rule._id} className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-slate-100">
+                        <div key={rule._id} className="bg-white rounded-3xl p-6 md:p-8 shadow-lg border border-slate-100">
                             <h3 className="text-xl font-extrabold text-slate-800 mb-4 flex items-center gap-2">
                                 <div className="w-2 h-8 bg-indigo-500 rounded-full" />
                                 {rule.title}
                             </h3>
                             <div className="prose prose-slate max-w-none text-slate-600 font-medium leading-relaxed whitespace-pre-wrap">
                                 {rule.content}
-                            </div>
-                            
-                            <div className="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-4 border-t border-slate-50 pt-6">
-                                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Half Day Limit</p>
-                                    <p className="text-lg font-black text-slate-700">{rule.halfDayThresholdHours} Hours</p>
-                                </div>
-                                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Full Day Limit</p>
-                                    <p className="text-lg font-black text-slate-700">{rule.fullDayThresholdHours} Hours</p>
-                                </div>
-                                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Late Grace</p>
-                                    <p className="text-lg font-black text-slate-700">{rule.lateGraceMinutes} Minutes</p>
-                                </div>
                             </div>
                         </div>
                     ))}

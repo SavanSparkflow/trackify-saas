@@ -564,7 +564,8 @@ const getCompanyHolidays = async (req, res) => {
     try {
         const Holiday = require('../models/Holiday');
         const holidays = await Holiday.find({ companyId: req.user.companyId }).sort({ date: 1 });
-        res.json(holidays);
+        const company = await Company.findById(req.user.companyId).select('holidayConfig');
+        res.json({ holidays, holidayConfig: company.holidayConfig });
     } catch (err) {
         res.status(500).json({ message: err.message });
     }

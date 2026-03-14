@@ -9,6 +9,7 @@ const client = new Client({
     }),
     puppeteer: {
         headless: true,
+        executablePath: 'C:\\Users\\PC\\.cache\\puppeteer\\chrome\\win64-146.0.7680.31\\chrome-win64\\chrome.exe',
         args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',
