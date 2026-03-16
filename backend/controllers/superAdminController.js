@@ -88,14 +88,22 @@ const updateCompany = async (req, res) => {
 };
 
 const getPlans = async (req, res) => {
-    const plans = await SubscriptionPlan.find();
-    res.json(plans);
+    try {
+        const plans = await SubscriptionPlan.find();
+        res.json(plans);
+    } catch (err) {
+        res.status(500).json({ message: 'Error fetching plans', error: err.message });
+    }
 };
 
 const createPlan = async (req, res) => {
-    const plan = new SubscriptionPlan(req.body);
-    await plan.save();
-    res.status(201).json(plan);
+    try {
+        const plan = new SubscriptionPlan(req.body);
+        await plan.save();
+        res.status(201).json(plan);
+    } catch (err) {
+        res.status(400).json({ message: 'Error creating plan', error: err.message });
+    }
 };
 
 const updatePlan = async (req, res) => {
@@ -103,7 +111,7 @@ const updatePlan = async (req, res) => {
         const plan = await SubscriptionPlan.findByIdAndUpdate(req.params.id, req.body, { new: true });
         res.json(plan);
     } catch (err) {
-        res.status(500).json({ message: 'Error updating plan' });
+        res.status(500).json({ message: 'Error updating plan', error: err.message });
     }
 };
 

@@ -174,7 +174,7 @@ export default function Companies() {
                                         <p className="text-sm font-medium text-slate-500 mt-0.5">{c.ownerEmail}</p>
                                     </td>
                                     <td className="p-5">
-                                        <p className="font-bold text-slate-700">{c.planId?.name || "No Plan"}</p>
+                                        <p className="font-bold text-slate-700">{c.planId?.planName || "No Plan"}</p>
                                     </td>
                                     <td className="p-5">
                                         <button

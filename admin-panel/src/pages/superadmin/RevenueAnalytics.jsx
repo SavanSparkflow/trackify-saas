@@ -37,14 +37,14 @@ export default function RevenueAnalytics() {
 
     return (
         <div className="p-4 md:p-8">
-            <div>
+            <div className="mb-8">
                 <h1 className="text-3xl font-black text-slate-800 tracking-tight flex items-center gap-2">
                     <BarChart3 className="text-rose-600" /> Revenue Analytics
                 </h1>
                 <p className="text-slate-500 font-bold text-sm mt-1 uppercase tracking-widest leading-none">Financial Performance Dashboard</p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                 {stats.map((s, i) => (
                     <div key={i} className="bg-white p-6 rounded-3xl border border-slate-100 shadow-xl shadow-slate-200/50 hover:-translate-y-1 transition-transform duration-300">
                         <div className="flex items-center justify-between mb-4">

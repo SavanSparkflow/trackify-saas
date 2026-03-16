@@ -10,9 +10,10 @@ export default function Plans() {
     const [modalMode, setModalMode] = useState(null); // 'add' or 'edit'
     const [selectedPlan, setSelectedPlan] = useState(null);
     const [formData, setFormData] = useState({
-        name: '',
+        planName: '',
         price: 0,
         employeeLimit: 0,
+        duration: 30, // Default to 30 days
         features: ''
     });
 
@@ -42,6 +43,7 @@ export default function Plans() {
                 ...formData,
                 price: Number(formData.price),
                 employeeLimit: Number(formData.employeeLimit),
+                duration: Number(formData.duration),
                 features: formData.features.split(',').map(f => f.trim()).filter(Boolean)
             };
 
@@ -81,16 +83,17 @@ export default function Plans() {
     };
 
     const openAddModal = () => {
-        setFormData({ name: '', price: 0, employeeLimit: 0, features: '' });
+        setFormData({ planName: '', price: 0, employeeLimit: 0, duration: 30, features: '' });
         setModalMode('add');
     };
 
     const openEditModal = (plan) => {
         setSelectedPlan(plan);
         setFormData({
-            name: plan.name,
+            planName: plan.planName,
             price: plan.price,
             employeeLimit: plan.employeeLimit,
+            duration: plan.duration || 30,
             features: plan.features.join(', ')
         });
         setModalMode('edit');
@@ -132,7 +135,7 @@ export default function Plans() {
                         )}
 
                         <div className="flex justify-between items-start">
-                            <h3 className="text-xl font-extrabold text-slate-800 tracking-tight">{plan.name}</h3>
+                            <h3 className="text-xl font-extrabold text-slate-800 tracking-tight">{plan.planName}</h3>
                             <div className="flex gap-2">
                                 <button onClick={() => openEditModal(plan)} className="text-blue-500 hover:text-blue-700 bg-blue-50 p-2 rounded-lg transition-colors">
                                     <Edit size={16} />
@@ -143,9 +146,9 @@ export default function Plans() {
                             </div>
                         </div>
 
-                        <div className="mt-4 mb-6 flex items-baseline text-5xl font-black text-slate-900 tracking-tighter">
+                        <div className="mt-4 mb-2 flex items-baseline text-5xl font-black text-slate-900 tracking-tighter">
                             ${plan.price}
-                            <span className="ml-1 text-base font-bold text-slate-500 tracking-widest uppercase">/mo</span>
+                            <span className="ml-1 text-base font-bold text-slate-500 tracking-widest uppercase">/{plan.duration} days</span>
                         </div>
 
                         <div className="px-4 py-2 bg-slate-50 rounded-xl inline-block text-sm font-extrabold text-slate-700 tracking-wide uppercase border border-slate-100 mb-6">
@@ -180,7 +183,7 @@ export default function Plans() {
                         <form onSubmit={handleFormSubmit} className="space-y-4">
                             <div>
                                 <label className="block text-sm font-semibold text-slate-700">Plan Tier Name</label>
-                                <input type="text" value={formData.name} required onChange={e => setFormData({ ...formData, name: e.target.value })} className="mt-2 w-full px-4 py-3 bg-slate-50 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-rose-500 font-medium" placeholder="Pro Tier" />
+                                <input type="text" value={formData.planName} required onChange={e => setFormData({ ...formData, planName: e.target.value })} className="mt-2 w-full px-4 py-3 bg-slate-50 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-rose-500 font-medium" placeholder="Pro Tier" />
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
@@ -188,9 +191,13 @@ export default function Plans() {
                                     <input type="number" value={formData.price} required onChange={e => setFormData({ ...formData, price: e.target.value })} className="mt-2 w-full px-4 py-3 bg-slate-50 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-rose-500 font-medium" placeholder="49.99" />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-semibold text-slate-700">User Limit</label>
-                                    <input type="number" value={formData.employeeLimit} required onChange={e => setFormData({ ...formData, employeeLimit: e.target.value })} className="mt-2 w-full px-4 py-3 bg-slate-50 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-rose-500 font-medium" placeholder="50" />
+                                    <label className="block text-sm font-semibold text-slate-700">Duration (Days)</label>
+                                    <input type="number" value={formData.duration} required onChange={e => setFormData({ ...formData, duration: e.target.value })} className="mt-2 w-full px-4 py-3 bg-slate-50 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-rose-500 font-medium" placeholder="30" />
                                 </div>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-semibold text-slate-700">User Limit</label>
+                                <input type="number" value={formData.employeeLimit} required onChange={e => setFormData({ ...formData, employeeLimit: e.target.value })} className="mt-2 w-full px-4 py-3 bg-slate-50 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-rose-500 font-medium" placeholder="50" />
                             </div>
                             <div>
                                 <label className="block text-sm font-semibold text-slate-700">Features (Comma Separated)</label>

@@ -85,7 +85,7 @@ export default function Subscriptions() {
                                         </td>
                                         <td className="p-5">
                                             <div className="inline-flex items-center gap-2 px-3 py-1 bg-slate-100 rounded-lg text-slate-700 font-black text-xs uppercase tracking-tighter border border-slate-200">
-                                                {c.planId?.name || 'N/A'}
+                                                {c.planId?.planName || 'N/A'}
                                             </div>
                                         </td>
                                         <td className="p-5 text-sm font-bold text-slate-600">
