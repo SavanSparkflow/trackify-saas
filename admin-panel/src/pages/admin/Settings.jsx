@@ -14,7 +14,15 @@ export default function Settings() {
         geofencing: false,
         faceRecognition: true,
         ipRestrictions: false,
-        whatsappAlerts: true
+        whatsappAlerts: true,
+        latePolicy: {
+            enableLateDeduction: false,
+            lateDaysThreshold: 5,
+            lateDaysDeduction: 1,
+            enableSevereLateDeduction: false,
+            severeLateMinutes: 15,
+            severeLateDeduction: 2
+        }
     });
 
     useEffect(() => {
@@ -34,7 +42,15 @@ export default function Settings() {
                 lunchStartTime: res.data.lunchStartTime || '13:00',
                 lunchEndTime: res.data.lunchEndTime || '14:00',
                 lateGracePeriod: res.data.lateGracePeriod !== undefined ? res.data.lateGracePeriod : 15,
-                monthlyWorkingDays: res.data.monthlyWorkingDays || [26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26]
+                monthlyWorkingDays: res.data.monthlyWorkingDays || [26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26],
+                latePolicy: res.data.latePolicy || {
+                    enableLateDeduction: false,
+                    lateDaysThreshold: 5,
+                    lateDaysDeduction: 1,
+                    enableSevereLateDeduction: false,
+                    severeLateMinutes: 15,
+                    severeLateDeduction: 2
+                }
             }));
         } catch (err) {
             toast.error('Failed to load settings');
@@ -193,6 +209,88 @@ export default function Settings() {
                             </button>
                         </div>
 
+                    </div>
+
+                    {/* Late Arrival Policy */}
+                    <div className="bg-white rounded-3xl shadow-xl border border-slate-100 p-8 space-y-8">
+                        <div>
+                            <h2 className="text-xl font-black text-slate-800 tracking-tight flex items-center gap-2">
+                                <Clock className="text-rose-600" /> Late Arrival Policy
+                            </h2>
+                            <p className="text-sm font-medium text-slate-400 mt-1 uppercase tracking-widest">Configure salary deductions for late staff</p>
+                        </div>
+
+                        {/* Standard Late Rule */}
+                        <div className="space-y-6 p-6 bg-slate-50 rounded-2xl border border-slate-100">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <h4 className="font-bold text-slate-800">Threshold Late Deduction</h4>
+                                    <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Deduct salary after X days of being late</p>
+                                </div>
+                                <button onClick={() => setSettings({ ...settings, latePolicy: { ...settings.latePolicy, enableLateDeduction: !settings.latePolicy.enableLateDeduction } })} className={`w-14 h-7 rounded-full transition-colors relative ${settings.latePolicy.enableLateDeduction ? 'bg-rose-600' : 'bg-slate-300'}`}>
+                                    <div className={`absolute top-1 w-5 h-5 bg-white rounded-full transition-all ${settings.latePolicy.enableLateDeduction ? 'left-8' : 'left-1'}`}></div>
+                                </button>
+                            </div>
+
+                            {settings.latePolicy.enableLateDeduction && (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in fade-in slide-in-from-top-4 duration-300">
+                                    <div className="space-y-2">
+                                        <label className="text-xs font-black text-slate-500 uppercase tracking-widest">Every X Days Late</label>
+                                        <input
+                                            type="number"
+                                            value={settings.latePolicy.lateDaysThreshold}
+                                            onChange={e => setSettings({ ...settings, latePolicy: { ...settings.latePolicy, lateDaysThreshold: parseInt(e.target.value) || 0 } })}
+                                            className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl font-bold text-slate-700 focus:ring-2 focus:ring-rose-500 outline-none"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-xs font-black text-slate-500 uppercase tracking-widest">Deduct (Days Salary)</label>
+                                        <input
+                                            type="number"
+                                            value={settings.latePolicy.lateDaysDeduction}
+                                            onChange={e => setSettings({ ...settings, latePolicy: { ...settings.latePolicy, lateDaysDeduction: parseFloat(e.target.value) || 0 } })}
+                                            className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl font-bold text-slate-700 focus:ring-2 focus:ring-rose-500 outline-none"
+                                        />
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Severe Late Rule */}
+                        <div className="space-y-6 p-6 bg-slate-50 rounded-2xl border border-slate-100">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <h4 className="font-bold text-slate-800">Severe Late Penalty</h4>
+                                    <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Immediate extra deduction for being very late</p>
+                                </div>
+                                <button onClick={() => setSettings({ ...settings, latePolicy: { ...settings.latePolicy, enableSevereLateDeduction: !settings.latePolicy.enableSevereLateDeduction } })} className={`w-14 h-7 rounded-full transition-colors relative ${settings.latePolicy.enableSevereLateDeduction ? 'bg-rose-600' : 'bg-slate-300'}`}>
+                                    <div className={`absolute top-1 w-5 h-5 bg-white rounded-full transition-all ${settings.latePolicy.enableSevereLateDeduction ? 'left-8' : 'left-1'}`}></div>
+                                </button>
+                            </div>
+
+                            {settings.latePolicy.enableSevereLateDeduction && (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in fade-in slide-in-from-top-4 duration-300">
+                                    <div className="space-y-2">
+                                        <label className="text-xs font-black text-slate-500 uppercase tracking-widest">If Late More Than (Mins)</label>
+                                        <input
+                                            type="number"
+                                            value={settings.latePolicy.severeLateMinutes}
+                                            onChange={e => setSettings({ ...settings, latePolicy: { ...settings.latePolicy, severeLateMinutes: parseInt(e.target.value) || 0 } })}
+                                            className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl font-bold text-slate-700 focus:ring-2 focus:ring-rose-500 outline-none"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-xs font-black text-slate-500 uppercase tracking-widest">Deduct (Days Salary)</label>
+                                        <input
+                                            type="number"
+                                            value={settings.latePolicy.severeLateDeduction}
+                                            onChange={e => setSettings({ ...settings, latePolicy: { ...settings.latePolicy, severeLateDeduction: parseFloat(e.target.value) || 0 } })}
+                                            className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl font-bold text-slate-700 focus:ring-2 focus:ring-rose-500 outline-none"
+                                        />
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
 

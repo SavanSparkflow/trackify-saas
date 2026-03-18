@@ -30,6 +30,7 @@ const attendanceSchema = new mongoose.Schema({
     lateBreakMinutes: { type: Number, default: 0 },
     lateMinutes: { type: Number, default: 0 },
     penaltyAmount: { type: Number, default: 0 },
+    penaltyDays: { type: Number, default: 0 }, // Deduced days
     earnedSalary: { type: Number, default: 0 },
 
     ipAddress: { type: String },

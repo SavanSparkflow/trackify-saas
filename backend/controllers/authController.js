@@ -205,7 +205,8 @@ const getMe = async (req, res) => {
                 lunchStartTime: company.lunchStartTime,
                 lunchEndTime: company.lunchEndTime,
                 lateGracePeriod: company.lateGracePeriod,
-                monthlyWorkingDays: company.monthlyWorkingDays || [26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26]
+                monthlyWorkingDays: company.monthlyWorkingDays || [26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26],
+                latePolicy: company.latePolicy || {}
             });
         }
 

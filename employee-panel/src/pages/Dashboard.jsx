@@ -15,6 +15,7 @@ export default function Dashboard() {
     const [modelsLoaded, setModelsLoaded] = useState(false);
     const [initializingCamera, setInitializingCamera] = useState(false);
     const videoRef = useRef(null);
+    const canvasRef = useRef(null);
     const streamRef = useRef(null);
     const name = localStorage.getItem('name') || 'Employee';
 
@@ -26,7 +27,7 @@ export default function Dashboard() {
         const loadModels = async () => {
             try {
                 const MODEL_URL = 'https://unpkg.com/@vladmandic/face-api/model/';
-                await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+                await faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL);
                 await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
                 await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
                 setModelsLoaded(true);
@@ -54,16 +55,37 @@ export default function Dashboard() {
         }
     };
 
-    // --- AI FACE DETECTION LOGIC ---
     useEffect(() => {
         let interval = null;
         if (scanning && modelsLoaded && !initializingCamera) {
             interval = setInterval(async () => {
-                if (videoRef.current && videoRef.current.readyState === 4) {
-                    const detections = await faceapi.detectSingleFace(videoRef.current, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.6 }));
-                    if (detections) {
+                if (videoRef.current && videoRef.current.readyState === 4 && canvasRef.current) {
+                    const video = videoRef.current;
+                    const canvas = canvasRef.current;
+                    const detections = await faceapi.detectAllFaces(video, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 }))
+                        .withFaceLandmarks()
+                        .withFaceDescriptors();
+                    
+                    const displaySize = { width: video.offsetWidth, height: video.offsetHeight };
+                    faceapi.matchDimensions(canvas, displaySize);
+
+                    if (detections && detections.length > 0) {
                         setFaceDetected(true);
+                        
+                        // Select the most prominent face
+                        const prominentFace = detections.sort((a, b) => (b.detection.box.width * b.detection.box.height) - (a.detection.box.width * a.detection.box.height))[0];
+                        
+                        const resizedDetections = faceapi.resizeResults(prominentFace, displaySize);
+                        const ctx = canvas.getContext('2d');
+                        ctx.clearRect(0, 0, canvas.width, canvas.height);
+                        
+                        const box = resizedDetections.detection.box;
+                        ctx.strokeStyle = '#3b82f6';
+                        ctx.lineWidth = 4;
+                        ctx.strokeRect(box.x, box.y, box.width, box.height);
                     } else {
+                        const ctx = canvas.getContext('2d');
+                        ctx.clearRect(0, 0, canvas.width, canvas.height);
                         setFaceDetected(false);
                     }
                 }
@@ -168,16 +190,44 @@ export default function Dashboard() {
                 img.onload = resolve;
                 img.onerror = reject;
             });
-            const refDetection = await faceapi.detectSingleFace(img, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.5 }))
-                .withFaceLandmarks()
-                .withFaceDescriptor();
 
-            if (!refDetection) {
+            // 1. Pre-process profile photo for better detection match
+            const processingCanvas = document.createElement('canvas');
+            const ctx = processingCanvas.getContext('2d');
+            processingCanvas.width = img.width;
+            processingCanvas.height = img.height;
+            ctx.filter = 'contrast(1.1) brightness(1.05)'; 
+            ctx.drawImage(img, 0, 0);
+
+            // 2. High robustness detection
+            let detections = await faceapi.detectAllFaces(processingCanvas, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.2 }))
+                .withFaceLandmarks()
+                .withFaceDescriptors();
+
+            if (detections.length === 0) {
+                console.warn("SSD failed on profile photo, trying TinyFace high-res...");
+                detections = await faceapi.detectAllFaces(processingCanvas, new faceapi.TinyFaceDetectorOptions({ inputSize: 512, scoreThreshold: 0.15 }))
+                    .withFaceLandmarks()
+                    .withFaceDescriptors();
+            }
+
+            if (detections.length === 0) {
                 toast.error('Could not detect face in registered profile photo. Contact admin to update photo.');
                 setScanning(false); setLoading(false);
                 return;
             }
-            faceMatcher = new faceapi.FaceMatcher(refDetection.descriptor, 0.55);
+
+            const prominentFace = detections.sort((a, b) => (b.detection.box.width * b.detection.box.height) - (a.detection.box.width * a.detection.box.height))[0];
+            
+            try {
+                const faceCanvas = await faceapi.extractFaces(processingCanvas, [prominentFace]);
+                const descriptor = faceCanvas.length > 0 
+                    ? await faceapi.computeFaceDescriptor(faceCanvas[0]) 
+                    : prominentFace.descriptor;
+                faceMatcher = new faceapi.FaceMatcher(descriptor, 0.50);
+            } catch (e) {
+                faceMatcher = new faceapi.FaceMatcher(prominentFace.descriptor, 0.50);
+            }
         } catch (error) {
             console.error("Reference photo processing error:", error);
             toast.error('Error processing registered profile photo.');
@@ -204,14 +254,15 @@ export default function Dashboard() {
         let bestDistance = Infinity;
         for (let i = 0; i < 40; i++) {
             if (videoRef.current && videoRef.current.readyState === 4) {
-                const detections = await faceapi.detectSingleFace(videoRef.current, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.5 }))
+                const detections = await faceapi.detectAllFaces(videoRef.current, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 }))
                     .withFaceLandmarks()
-                    .withFaceDescriptor();
+                    .withFaceDescriptors();
 
-                if (detections) {
-                    const match = faceMatcher.findBestMatch(detections.descriptor);
+                if (detections && detections.length > 0) {
+                    const prominentFace = detections.sort((a, b) => (b.detection.box.width * b.detection.box.height) - (a.detection.box.width * a.detection.box.height))[0];
+                    const match = faceMatcher.findBestMatch(prominentFace.descriptor);
                     if (match.distance < bestDistance) bestDistance = match.distance;
-                    if (match.label === 'person 1' || match.distance <= 0.55) { // faceMatcher default gives 'person 1' as label
+                    if (match.distance <= 0.50) { 
                         found = true;
                         await new Promise(r => setTimeout(r, 600)); // Ensure clear shot
                         break;
@@ -315,6 +366,7 @@ export default function Dashboard() {
                 <div className="fixed inset-0 z-[100] bg-slate-900/90 backdrop-blur-xl flex flex-col items-center justify-center p-6 text-white text-center">
                     <div className="relative w-full max-w-md aspect-square bg-slate-800 rounded-3xl overflow-hidden border-4 border-blue-500 shadow-2xl shadow-blue-500/20">
                         <video ref={videoRef} autoPlay playsInline muted className={`w-full h-full object-cover transition-all duration-500 ${faceDetected ? 'grayscale-0' : 'grayscale'}`} />
+                        <canvas ref={canvasRef} className="absolute inset-0 w-full h-full pointer-events-none" />
                         <div className="absolute inset-0 border-[20px] border-blue-500/20 pointer-events-none"></div>
                         <div className="absolute top-1/2 left-0 w-full h-1 bg-blue-500/50 shadow-lg shadow-blue-500 animate-[scan_2s_infinite]"></div>
 

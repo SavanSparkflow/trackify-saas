@@ -189,7 +189,8 @@ export default function DashboardLayout({ role }) {
     const adminLinks = [
         { to: "/admin", icon: LayoutDashboard, label: "Dashboard" },
         { to: "/admin/employees", icon: Users, label: "Employees" },
-        { to: "/admin/attendance", icon: CalendarCheck, label: "Attendance" },
+        { to: "/admin/attendance", icon: CalendarCheck, label: "Attendance Log" },
+        { to: "/admin/attendance-sheet", icon: CalendarDays, label: "Attendance Sheet" },
         { to: "/admin/leaves", icon: FileText, label: "Leaves" },
         { to: "/admin/holidays", icon: CalendarHeart, label: "Holidays" },
         { to: "/admin/events", icon: CalendarDays, label: "Events" },
@@ -257,7 +258,7 @@ export default function DashboardLayout({ role }) {
 
             {/* Main Content */}
             <main className="flex-1 overflow-y-auto flex flex-col w-full h-screen">
-                <header className="bg-white/80 backdrop-blur-md sticky top-0 z-[999999] h-16 flex items-center px-4 md:px-8 justify-between border-b border-slate-200 shadow-sm shrink-0">
+                <header className="bg-white/80 backdrop-blur-md sticky top-0 z-[999] h-16 flex items-center px-4 md:px-8 justify-between border-b border-slate-200 shadow-sm shrink-0">
                     <button onClick={toggleSidebar} className="p-2 -ml-2 rounded-lg hover:bg-slate-100 md:hidden text-slate-600">
                         <Menu size={24} />
                     </button>

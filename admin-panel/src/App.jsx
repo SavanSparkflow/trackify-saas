@@ -23,6 +23,8 @@ import Holidays from './pages/admin/Holidays';
 import Rules from './pages/admin/Rules';
 import Payroll from './pages/admin/Payroll';
 import Events from './pages/admin/Events';
+import KioskMode from './pages/admin/KioskMode';
+import AttendanceSheet from './pages/admin/AttendanceSheet';
 
 function App() {
     return (
@@ -55,6 +57,7 @@ function App() {
                     <Route index element={<AdminDashboard />} />
                     <Route path="employees" element={<Employees />} />
                     <Route path="attendance" element={<Attendance />} />
+                    <Route path="attendance-sheet" element={<AttendanceSheet />} />
                     <Route path="leaves" element={<Leaves />} />
                     <Route path="reports" element={<Reports />} />
                     <Route path="payroll" element={<Payroll />} />
@@ -63,6 +66,7 @@ function App() {
                     <Route path="rules" element={<Rules />} />
                     <Route path="profile" element={<Profile />} />
                     <Route path="settings" element={<Settings />} />
+                    <Route path="kiosk" element={<KioskMode />} />
                 </Route>
 
                 <Route path="/" element={<Navigate to="/login" replace />} />

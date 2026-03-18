@@ -28,6 +28,15 @@ const companySchema = new mongoose.Schema({
         type: String,
         enum: ['all-sundays', 'all-saturdays-sundays', '1-3-saturdays', '2-4-saturdays'],
         default: 'all-sundays'
+    },
+    latePolicy: {
+        enableLateDeduction: { type: Boolean, default: false },
+        lateDaysThreshold: { type: Number, default: 5 }, // Every 5 days late
+        lateDaysDeduction: { type: Number, default: 1 },  // Deduct 1 day salary
+        
+        enableSevereLateDeduction: { type: Boolean, default: false },
+        severeLateMinutes: { type: Number, default: 20 }, // If more than 20 mins late
+        severeLateDeduction: { type: Number, default: 2 }   // Deduct 2 days salary
     }
 }, { timestamps: true });
 

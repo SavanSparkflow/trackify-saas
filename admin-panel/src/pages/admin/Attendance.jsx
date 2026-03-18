@@ -1,23 +1,50 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
-import { Calendar, Search, Download, MapPin } from 'lucide-react';
+import { Calendar, Search, Download, MapPin, Plus, X, User } from 'lucide-react';
 import Pagination from '../../components/Pagination';
 
 export default function Attendance() {
     const [records, setRecords] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
-    const [dateFilter, setDateFilter] = useState('');
+    const [dateFilter, setDateFilter] = useState(new Date().toISOString().split('T')[0]);
 
     // Pagination State
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
     const itemsPerPage = 10;
+    
+    // Manual Attendance Modal State
+    const [showManualModal, setShowManualModal] = useState(false);
+    const [allEmployees, setAllEmployees] = useState([]);
+    const [manualData, setManualData] = useState({
+        userId: '',
+        action: 'punchIn'
+    });
+    const [submittingManual, setSubmittingManual] = useState(false);
 
     useEffect(() => {
         fetchAttendance();
     }, [currentPage, searchTerm, dateFilter]);
+
+    useEffect(() => {
+        if (showManualModal) {
+            fetchAllEmployees();
+        }
+    }, [showManualModal]);
+
+    const fetchAllEmployees = async () => {
+        try {
+            const token = localStorage.getItem('token');
+            const res = await axios.get(`${import.meta.env.VITE_API_URL}/admin/kiosk/employees`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            setAllEmployees(res.data);
+        } catch (err) {
+            toast.error('Failed to load employees');
+        }
+    };
 
     const fetchAttendance = async () => {
         try {
@@ -40,6 +67,27 @@ export default function Attendance() {
         }
     };
     
+    const handleManualSubmit = async (e) => {
+        e.preventDefault();
+        if (!manualData.userId) return toast.error('Please select an employee');
+        
+        setSubmittingManual(true);
+        try {
+            const token = localStorage.getItem('token');
+            const res = await axios.post(`${import.meta.env.VITE_API_URL}/admin/attendance/manual`, manualData, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            toast.success(res.data.message || 'Attendance recorded');
+            setShowManualModal(false);
+            setManualData({ userId: '', action: 'punchIn' });
+            fetchAttendance();
+        } catch (err) {
+            toast.error(err.response?.data?.message || 'Failed to record attendance');
+        } finally {
+            setSubmittingManual(false);
+        }
+    };
+
     const updateOTStatus = async (id, status) => {
         try {
             const token = localStorage.getItem('token');
@@ -80,12 +128,18 @@ export default function Attendance() {
                     </h1>
                     <p className="text-sm text-slate-500 font-medium mt-1">Review employee daily work logs</p>
                 </div>
-                <div className="flex gap-3 w-full md:w-auto">
+                <div className="flex flex-wrap gap-3 w-full md:w-auto">
+                    <button 
+                        onClick={() => setShowManualModal(true)}
+                        className="flex items-center gap-2 px-6 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm shadow-lg shadow-blue-500/20 hover:bg-blue-700 active:scale-95 transition-all w-full md:w-auto"
+                    >
+                        <Plus size={18} /> Manual Entry
+                    </button>
                     <input
                         type="date"
                         value={dateFilter}
                         onChange={(e) => setDateFilter(e.target.value)}
-                        className="px-4 py-2 border border-slate-200 rounded-xl font-medium text-slate-600 focus:ring-2 focus:ring-blue-500 outline-none w-full md:w-auto shadow-sm"
+                        className="px-4 py-2.5 border border-slate-200 rounded-xl font-medium text-slate-600 focus:ring-2 focus:ring-blue-500 outline-none w-full md:w-auto shadow-sm"
                     />
                 </div>
             </div>
@@ -239,6 +293,88 @@ export default function Attendance() {
                     onPageChange={handlePageChange}
                 />
             </div>
+
+            {/* Manual Attendance Modal */}
+            {showManualModal && (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[999999] flex items-center justify-center p-4">
+                    <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in duration-300">
+                        <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                            <div>
+                                <h3 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-2">
+                                    <Plus className="text-blue-600" /> Manual Attendance
+                                </h3>
+                                <p className="text-sm font-medium text-slate-400 uppercase tracking-widest mt-1">Record entry for staff</p>
+                            </div>
+                            <button onClick={() => setShowManualModal(false)} className="p-2 hover:bg-white rounded-xl transition-colors shadow-sm text-slate-400">
+                                <X size={24} />
+                            </button>
+                        </div>
+                        
+                        <form onSubmit={handleManualSubmit} className="p-8 space-y-6">
+                            <div className="space-y-2">
+                                <label className="text-xs font-black text-slate-500 uppercase tracking-widest flex items-center gap-1.5 ml-1">
+                                    <User size={12} /> Select Employee
+                                </label>
+                                <select 
+                                    value={manualData.userId}
+                                    onChange={(e) => setManualData({...manualData, userId: e.target.value})}
+                                    className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-slate-700 outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all cursor-pointer"
+                                    required
+                                >
+                                    <option value="">Choose an employee...</option>
+                                    {allEmployees.map(emp => (
+                                        <option key={emp._id} value={emp._id}>{emp.name} ({emp.employeeId || 'ID N/A'})</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div className="space-y-4">
+                                <label className="text-xs font-black text-slate-500 uppercase tracking-widest ml-1">Attendance Action</label>
+                                <div className="grid grid-cols-2 gap-3">
+                                    {[
+                                        { id: 'punchIn', label: 'Punch In', color: 'blue' },
+                                        { id: 'punchOut', label: 'Punch Out', color: 'rose' },
+                                        { id: 'breakStart', label: 'Break Start', color: 'amber' },
+                                        { id: 'breakEnd', label: 'Break End', color: 'emerald' }
+                                    ].map(action => (
+                                        <label key={action.id} className={`relative group cursor-pointer`}>
+                                            <input 
+                                                type="radio" 
+                                                name="action"
+                                                value={action.id}
+                                                checked={manualData.action === action.id}
+                                                onChange={(e) => setManualData({...manualData, action: e.target.value})}
+                                                className="peer sr-only"
+                                            />
+                                            <div className={`p-4 rounded-2xl border-2 border-slate-100 bg-slate-50/50 text-center transition-all peer-checked:border-blue-600 peer-checked:bg-blue-50/50 group-hover:bg-slate-100`}>
+                                                <p className={`text-sm font-black uppercase tracking-widest transition-colors ${manualData.action === action.id ? 'text-blue-600' : 'text-slate-500'}`}>
+                                                    {action.label}
+                                                </p>
+                                            </div>
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="pt-4 flex gap-3">
+                                <button 
+                                    type="button"
+                                    onClick={() => setShowManualModal(false)}
+                                    className="flex-1 px-8 py-4 bg-slate-100 text-slate-600 rounded-2xl font-black uppercase tracking-widest text-sm hover:bg-slate-200 transition-all"
+                                >
+                                    Cancel
+                                </button>
+                                <button 
+                                    disabled={submittingManual}
+                                    className="flex-3 px-12 py-4 bg-slate-900 text-white rounded-2xl font-black uppercase tracking-widest text-sm shadow-xl shadow-slate-900/20 hover:bg-slate-800 active:scale-95 disabled:opacity-70 disabled:pointer-events-none transition-all"
+                                >
+                                    {submittingManual ? 'Processing...' : 'Confirm Entry'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div >
     );
 }

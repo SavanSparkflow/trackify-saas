@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import { FileText, Download, Share2, Search, Calendar } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import Pagination from '../../components/Pagination';
 
 export default function Reports() {
@@ -50,6 +51,7 @@ export default function Reports() {
                 const daysWorked = totalPresent + totalLate + (totalHalfDay * 0.5);
                 
                 const totalSalary = empAttendance.reduce((sum, a) => sum + (a.earnedSalary || 0), 0);
+                const totalDeductionDays = empAttendance.reduce((sum, a) => sum + (a.penaltyDays || 0), 0);
                 const totalWorkHoursDec = empAttendance.reduce((sum, a) => sum + (a.totalWorkHours || 0), 0);
                 const totalOTHoursDec = empAttendance.reduce((sum, a) => sum + (a.overtime?.totalHours || 0), 0);
 
@@ -72,6 +74,7 @@ export default function Reports() {
                     totalAbsent,
                     totalLeave,
                     totalHalfDay,
+                    totalDeductionDays,
                     totalSalary: totalSalary,
                     formattedSalary: new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(totalSalary),
                     totalWorkHoursStr: formatTime(totalWorkHoursDec + totalOTHoursDec),
@@ -104,9 +107,10 @@ export default function Reports() {
         window.open(url, '_blank');
     };
 
-    const handleDownloadCSV = (emp) => {
-        let csvContent = "data:text/csv;charset=utf-8,";
-        csvContent += "Date,Punch In,Punch Out,Status,Shift Hours,OT Start,OT End,OT Hours,Total Hours,Salary\n";
+    const handleDownloadSheet = async (emp, shouldShare = false) => {
+        const rows = [];
+        // Header
+        rows.push(["Date", "Punch In", "Punch Out", "Status", "Shift Hours", "OT Hours", "Total Hours", "Deduction Days", "Salary"]);
 
         const daysInMonth = new Date(year, month, 0).getDate();
         let totalOT = 0;
@@ -115,17 +119,15 @@ export default function Reports() {
 
         for (let d = 1; d <= 31; d++) {
             if (d > daysInMonth) {
-                csvContent += `"${d}/${month}/${year}","--","--","--","0","--","--","0","0","0"\n`;
+                rows.push([`${d}/${month}/${year}`, "--", "--", "--", "0", "--", "--", "0", "0"]);
                 continue;
             }
             const record = emp.records.find(r => new Date(r.date).getDate() === d);
-            const date = `${d}/${month}/${year}`;
+            const dateStr = `${d}/${month}/${year}`;
 
             if (record) {
                 const pIn = record.punchIn ? new Date(record.punchIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--';
                 const pOut = record.punchOut ? new Date(record.punchOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--';
-                const otStart = record.overtime?.startTime ? new Date(record.overtime.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--';
-                const otEnd = record.overtime?.endTime ? new Date(record.overtime.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--';
                 
                 const shiftHrs = record.totalWorkHours || 0;
                 const otHrs = record.overtime?.totalHours || 0;
@@ -135,24 +137,69 @@ export default function Reports() {
                 totalShift += shiftHrs;
                 totalSalary += (record.earnedSalary || 0);
 
-                csvContent += `"${date}","${pIn}","${pOut}","${record.status}","${shiftHrs.toFixed(2)}","${otStart}","${otEnd}","${otHrs.toFixed(2)}","${totalHrs.toFixed(2)}","${record.earnedSalary || 0}"\n`;
+                rows.push([dateStr, pIn, pOut, record.status, shiftHrs.toFixed(2), otHrs.toFixed(2), totalHrs.toFixed(2), record.penaltyDays || 0, (record.earnedSalary || 0).toFixed(2)]);
             } else {
-                csvContent += `"${date}","--","--","Absent","0","--","--","0","0","0"\n`;
+                rows.push([dateStr, "--", "--", "Absent", "0", "--", "--", "0", "0"]);
             }
         }
 
-        // Add summary at line 33 (Row 33 in Excel, after 1 header and 31 days)
-        csvContent += `\n"SUMMARY",,,,,"TOTAL WORKING DAYS","${emp.daysWorked}","TOTAL OT HOURS","${totalOT.toFixed(2)}"\n`;
-        csvContent += `,,,,,,"TOTAL WORKING HOURS","${(totalShift + totalOT).toFixed(2)}","TOTAL ABSENT","${emp.totalAbsent}"\n`;
-        csvContent += `,,,,,,"TOTAL LEAVE","${emp.totalLeave}","TOTAL SALARY","${totalSalary.toFixed(2)}"\n`;
+        // Summary Rows
+        rows.push([]);
+        rows.push(["SUMMARY", "", "", "", "", "TOTAL WORKING DAYS", emp.daysWorked, "TOTAL OT HOURS", totalOT.toFixed(2)]);
+        rows.push(["", "", "", "", "", "TOTAL WORKING HOURS", (totalShift + totalOT).toFixed(2), "TOTAL ABSENT", emp.totalAbsent]);
+        rows.push(["", "", "", "", "", "TOTAL LEAVE", emp.totalLeave, "TOTAL SALARY", totalSalary.toFixed(2)]);
 
-        const encodedUri = encodeURI(csvContent);
-        const link = document.createElement("a");
-        link.setAttribute("href", encodedUri);
-        link.setAttribute("download", `Report_${emp.name}_${month}_${year}.csv`);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        const worksheet = XLSX.utils.aoa_to_sheet(rows);
+        
+        // Column Widths
+        worksheet['!cols'] = [
+            { wch: 15 }, // Date
+            { wch: 10 }, // Punch In
+            { wch: 10 }, // Punch Out
+            { wch: 12 }, // Status
+            { wch: 12 }, // Shift Hours
+            { wch: 10 }, // OT Hours
+            { wch: 12 }, // Total Hours
+            { wch: 15 }, // Deduction Days
+            { wch: 12 }  // Salary
+        ];
+
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, `Report`);
+
+        const fileName = `${emp.name.replace(/\s+/g, '_')}_${month}_${year}_Report.xlsx`;
+        
+        // Write file and download
+        const wbout = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+        const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        
+        if (shouldShare && navigator.canShare) {
+            try {
+                const file = new File([blob], fileName, { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+                if (navigator.canShare({ files: [file] })) {
+                    await navigator.share({
+                        files: [file],
+                        title: `${emp.name}'s Report`,
+                        text: `Attendance report for ${month}/${year}`
+                    });
+                } else {
+                    throw new Error("Cannot share file");
+                }
+            } catch (err) {
+                // Fallback to manual download
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = fileName;
+                a.click();
+            }
+        } else {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = fileName;
+            a.click();
+        }
     };
 
     const handlePageChange = (pageNumber) => {
@@ -210,11 +257,11 @@ export default function Reports() {
                                         <p className="text-sm font-bold text-slate-500">{emp.email} • Salary: {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(emp.monthlySalary || 0)}/mo</p>
                                     </div>
                                     <div className="flex gap-3">
-                                        <button onClick={() => handleDownloadCSV(emp)} className="p-2.5 bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-xl font-bold transition-all shadow-sm" title="Download CSV">
+                                        <button onClick={() => handleDownloadSheet(emp)} className="p-2.5 bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-xl font-bold transition-all shadow-sm" title="Download Excel">
                                             <Download size={18} />
                                         </button>
                                         <button onClick={() => handleShareWhatsApp(emp)} className="flex items-center gap-2 px-4 py-2.5 bg-[#25D366] hover:bg-[#1ebd5a] text-white rounded-xl font-bold transition-all shadow-lg shadow-green-500/20 active:scale-95 text-sm uppercase tracking-wider pl-3">
-                                            <Share2 size={16} /> WhatsApp
+                                            <Share2 size={16} /> WhatsApp Report
                                         </button>
                                     </div>
                                 </div>
@@ -232,8 +279,8 @@ export default function Reports() {
                                         <p className="text-xl font-black text-amber-600">{emp.totalLate}</p>
                                     </div>
                                     <div className="p-4 text-center bg-rose-50/50">
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Absent</p>
-                                        <p className="text-xl font-black text-rose-600">{emp.totalAbsent}</p>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Deduction</p>
+                                        <p className="text-xl font-black text-rose-600">{emp.totalDeductionDays} Days</p>
                                     </div>
                                     <div className="p-4 text-center bg-indigo-50/50">
                                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total Hours</p>

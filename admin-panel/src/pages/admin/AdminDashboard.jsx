@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Users, UserCheck, Clock, FileText } from 'lucide-react';
+import { Users, UserCheck, Clock, FileText, Monitor } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import axios from 'axios';
 import toast from 'react-hot-toast';
@@ -68,17 +68,25 @@ export default function AdminDashboard() {
 
     return (
         <div className="p-4 md:p-8">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-3 mb-3">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-3 mb-4">
                 <div>
                     <h1 className="text-3xl font-extrabold text-slate-800 tracking-tight">Welcome, {localStorage.getItem('name') || 'Admin'}</h1>
-                    <p className="text-slate-500 text-sm font-medium mt-1 uppercase tracking-widest font-black">Company Performance Overview</p>
+                    <p className="text-slate-500 text-sm uppercase tracking-widest font-black mt-1">Company Performance Overview</p>
                 </div>
-                <div className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 rounded-xl font-bold text-xs uppercase tracking-widest border border-blue-100 shadow-sm">
-                    <Clock size={14} /> {new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                <div className="flex items-center gap-3">
+                    <button 
+                        onClick={() => navigate('/admin/kiosk')}
+                        className="flex items-center gap-2 px-6 py-3 bg-slate-900 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-slate-900/20 hover:bg-slate-800 active:scale-95 transition-all"
+                    >
+                        <Monitor size={16} className="text-blue-400" /> Launch Kiosk Mode
+                    </button>
+                    <div className="flex items-center gap-2 px-4 py-3 bg-blue-50 text-blue-700 rounded-2xl font-bold text-xs uppercase tracking-widest border border-blue-100 shadow-sm">
+                        <Clock size={14} /> {new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                    </div>
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-4">
                 <StatCard title="Total Employees" value={stats.totalEmployees} subtitle="Registered Workers" icon={Users} colorClass="bg-blue-100 text-blue-600" borderClass="border-blue-100" />
                 <StatCard title="Present Today" value={stats.presentToday} subtitle="Checked-in Logs" icon={UserCheck} colorClass="bg-green-100 text-green-600" borderClass="border-green-100" />
                 <StatCard title="Late Arrivals" value={stats.lateEmployees} subtitle="System-wide Checks" icon={Clock} colorClass="bg-amber-100 text-amber-600" borderClass="border-amber-100" />

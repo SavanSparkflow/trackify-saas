@@ -256,7 +256,7 @@ export default function EmployeeLayout() {
                             {new Date().toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}
                         </div>
                     </div>
-                    <div className="flex items-center gap-3 pr-2 md:pr-4">
+                    <div className="flex items-center gap-3">
                         <div className="relative">
                             <button 
                                 onClick={() => setShowNotifDropdown(!showNotifDropdown)}
@@ -317,12 +317,14 @@ export default function EmployeeLayout() {
                             )}
                         </div>
 
-                        <div className="h-8 w-8 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center font-bold">
+                        <div className="h-9 w-9 rounded-xl flex items-center justify-center font-black shadow-inner bg-blue-100 text-blue-600">
                             {localStorage.getItem('name')?.charAt(0) || 'U'}
                         </div>
-                        <span className="text-sm font-bold text-slate-700 w-full hidden sm:block">
-                            {localStorage.getItem('name') || 'Employee'}
-                        </span>
+                        <div className="flex flex-col text-right">
+                            <span className="text-sm font-black text-slate-800 leading-tight">
+                                {localStorage.getItem('name') || 'Administrator'}
+                            </span>
+                        </div>
                     </div>
                 </header>
 

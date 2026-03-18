@@ -4,10 +4,18 @@ const Leave = require('../models/Leave');
 const Holiday = require('../models/Holiday');
 const Company = require('../models/Company');
 const Notification = require('../models/Notification');
+const mongoose = require('mongoose');
 const { emitToUser } = require('../utils/socket');
 const bcrypt = require('bcryptjs');
 const { uploadToCloudinary } = require('../config/cloudinary');
 const helper = require('../utils/helper');
+const { 
+    getTodayRecord, 
+    processPunchIn, 
+    processPunchOut, 
+    processBreakStart, 
+    processBreakEnd 
+} = require('../services/attendanceService');
 
 const getAdminDashboard = async (req, res) => {
     try {
@@ -509,6 +517,235 @@ module.exports = {
             res.json(company);
         } catch (err) {
             res.status(500).json({ message: 'Error updating holiday config' });
+        }
+    },
+    getEmployeesKiosk: async (req, res) => {
+        try {
+            const employees = await User.find({ 
+                companyId: req.user.companyId, 
+                role: 'employee', 
+                status: 'active' 
+            }).select('name attendancePhoto employeeId');
+            res.json(employees);
+        } catch (err) {
+            res.status(500).json({ message: 'Error fetching kiosk data' });
+        }
+    },
+    kioskPunch: async (req, res) => {
+        try {
+            const { userId, location, photo } = req.body;
+            const companyId = req.user.companyId;
+
+            const attendance = await getTodayRecord(userId);
+            let result;
+
+            if (!attendance || !attendance.punchIn) {
+                result = await processPunchIn({
+                    userId,
+                    companyId,
+                    location: location || { lat: 0, lng: 0 },
+                    photo: photo || 'Manual',
+                    ipAddress: req.headers['x-forwarded-for'] || req.socket.remoteAddress
+                });
+            } else if (!attendance.punchOut) {
+                const openBreak = attendance.breaks.find(b => !b.breakEnd);
+                if (openBreak) {
+                    result = await processBreakEnd({ userId, companyId, location: location || { lat: 0, lng: 0 } });
+                } else {
+                    result = await processPunchOut({ userId, companyId, location: location || { lat: 0, lng: 0 }, photo: photo || 'Manual' });
+                }
+            } else {
+                return res.status(400).json({ message: 'Already finished shift for today.' });
+            }
+
+            res.status(200).json(result);
+        } catch (err) {
+            res.status(400).json({ message: err.message });
+        }
+    },
+    manualAttendance: async (req, res) => {
+        try {
+            const { userId, action, location, photo } = req.body;
+            const companyId = req.user.companyId;
+
+            let result;
+            switch (action) {
+                case 'punchIn':
+                    result = await processPunchIn({
+                        userId,
+                        companyId,
+                        location: location || { lat: 0, lng: 0 },
+                        photo: photo || 'Admin Manual',
+                        ipAddress: req.headers['x-forwarded-for'] || req.socket.remoteAddress
+                    });
+                    break;
+                case 'punchOut':
+                    result = await processPunchOut({
+                        userId,
+                        companyId,
+                        location: location || { lat: 0, lng: 0 },
+                        photo: photo || 'Admin Manual'
+                    });
+                    break;
+                case 'breakStart':
+                    result = await processBreakStart({
+                        userId,
+                        companyId,
+                        location: location || { lat: 0, lng: 0 }
+                    });
+                    break;
+                case 'breakEnd':
+                    result = await processBreakEnd({
+                        userId,
+                        companyId,
+                        location: location || { lat: 0, lng: 0 }
+                    });
+                    break;
+                default:
+                    return res.status(400).json({ message: 'Invalid action' });
+            }
+
+            res.status(200).json(result);
+        } catch (err) {
+            res.status(400).json({ message: err.message });
+        }
+    },
+    getLatePolicy: async (req, res) => {
+        try {
+            const company = await Company.findById(req.user.companyId).select('latePolicy');
+            res.json(company.latePolicy || {});
+        } catch (err) {
+            res.status(500).json({ message: 'Error fetching late policy' });
+        }
+    },
+    updateLatePolicy: async (req, res) => {
+        try {
+            const { latePolicy } = req.body;
+            const company = await Company.findByIdAndUpdate(
+                req.user.companyId,
+                { latePolicy },
+                { new: true }
+            );
+            res.json(company.latePolicy);
+        } catch (err) {
+            res.status(500).json({ message: 'Error updating late policy' });
+        }
+    },
+    getMonthlyAttendanceSheet: async (req, res) => {
+        try {
+            const { month, year, employeeId } = req.query;
+            const companyId = req.user.companyId;
+
+            if (!month || !year) {
+                return res.status(400).json({ message: 'Month and year are required' });
+            }
+            const monthInt = parseInt(month);
+            const yearInt = parseInt(year);
+
+            const startDate = new Date(yearInt, monthInt - 1, 1);
+            const endDate = new Date(yearInt, monthInt, 0, 23, 59, 59);
+            const totalDaysInMonth = new Date(yearInt, monthInt, 0).getDate();
+
+            // Fetch Data
+            let employeeQuery = { companyId, role: 'employee', status: 'active' };
+            if (employeeId && mongoose.Types.ObjectId.isValid(employeeId)) {
+                employeeQuery._id = new mongoose.Types.ObjectId(employeeId);
+            }
+
+            const employees = await User.find(employeeQuery).select('name email employeeId');
+            const empIds = employees.map(emp => emp._id);
+            
+            const attendance = await Attendance.find({
+                companyId,
+                userId: { $in: empIds },
+                date: { $gte: startDate, $lte: endDate }
+            }).select('userId date status totalWorkHours');
+
+            const leaves = await Leave.find({
+                companyId,
+                userId: { $in: empIds },
+                status: 'Approved',
+                $or: [
+                    { startDate: { $gte: startDate, $lte: endDate } },
+                    { endDate: { $gte: startDate, $lte: endDate } },
+                    { startDate: { $lte: startDate }, endDate: { $gte: endDate } }
+                ]
+            });
+
+            const holidays = await Holiday.find({
+                companyId,
+                date: { $gte: startDate, $lte: endDate }
+            });
+
+            const company = await Company.findById(companyId).select('holidayConfig');
+            const weeklyOffDays = company?.holidayConfig?.weeklyOff || ['Sunday'];
+
+            const report = employees.map(emp => {
+                const empDays = {};
+                let presentCount = 0;
+                let absentCount = 0;
+                let leaveCount = 0;
+                let holidayCount = 0;
+                let totalWorkHours = 0;
+
+                for (let d = 1; d <= totalDaysInMonth; d++) {
+                    const currentDate = new Date(yearInt, monthInt - 1, d);
+                    const dateStr = currentDate.toISOString().split('T')[0];
+                    const dayName = currentDate.toLocaleDateString('en-US', { weekday: 'long' });
+
+                    const isHoliday = holidays.find(h => new Date(h.date).toISOString().split('T')[0] === dateStr);
+                    const isWeeklyOff = weeklyOffDays.includes(dayName);
+                    const isOnLeave = leaves.find(l => {
+                        return l.userId.toString() === emp._id.toString() &&
+                            currentDate >= new Date(l.startDate).setHours(0,0,0,0) &&
+                            currentDate <= new Date(l.endDate).setHours(23,59,59,999);
+                    });
+                    const attRecord = attendance.find(a => 
+                        a.userId.toString() === emp._id.toString() && 
+                        new Date(a.date).toISOString().split('T')[0] === dateStr
+                    );
+
+                    let status = '';
+                    if (attRecord) {
+                        status = attRecord.status;
+                        if (['Present', 'Late', 'Half Day'].includes(status)) presentCount++;
+                        if (status === 'Absent') absentCount++;
+                        totalWorkHours += attRecord.totalWorkHours || 0;
+                    } else if (isOnLeave) {
+                        status = 'Leave';
+                        leaveCount++;
+                    } else if (isHoliday) {
+                        status = 'Holiday';
+                        holidayCount++;
+                    } else if (isWeeklyOff) {
+                        status = 'Weekend';
+                    } else if (currentDate <= new Date()) {
+                        status = 'Absent';
+                        absentCount++;
+                    }
+                    empDays[d] = status;
+                }
+
+                return {
+                    _id: emp._id,
+                    name: emp.name,
+                    employeeId: emp.employeeId,
+                    days: empDays,
+                    summary: {
+                        totalDays: totalDaysInMonth,
+                        presentDays: presentCount,
+                        absentDays: absentCount,
+                        leaveDays: leaveCount,
+                        holidayDays: holidayCount,
+                        totalWorkHours: totalWorkHours.toFixed(2)
+                    }
+                };
+            });
+
+            res.json({ data: report, totalDaysInMonth, month: monthInt, year: yearInt });
+        } catch (err) {
+            console.error(err);
+            res.status(500).json({ message: 'Error generating attendance sheet' });
         }
     }
 };
