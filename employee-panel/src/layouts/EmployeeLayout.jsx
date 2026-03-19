@@ -83,16 +83,21 @@ export default function EmployeeLayout() {
 
         const socket = io(socketUrl, {
             transports: ['websocket', 'polling'],
-            reconnectionAttempts: 5
+            reconnectionAttempts: 10,
+            reconnectionDelay: 2000,
+            timeout: 20000
         });
 
         socket.on('connect', () => {
-            console.log('Socket Connected');
-            socket.emit('join_company', companyId);
+            console.log('✅ Employee Socket Connected:', socket.id);
+            socket.emit('join_company', companyId.toString());
             try {
                 const payload = JSON.parse(atob(token.split('.')[1]));
-                if (payload.id) socket.emit('join_user', payload.id);
-            } catch (e) { console.error('Token parse error'); }
+                if (payload.id) {
+                    socket.emit('join_user', payload.id.toString());
+                    console.log('✅ Employee Joined Personal Room:', payload.id);
+                }
+            } catch (e) { console.error('Token parse error for socket joining', e); }
         });
 
         const showBrowserNotification = (title, body) => {
@@ -125,8 +130,21 @@ export default function EmployeeLayout() {
             fetchNotifications();
         });
 
+        socket.on('connect_error', (error) => {
+            console.error('❌ Employee Socket Connection Error:', error);
+        });
+
+        socket.on('disconnect', (reason) => {
+            console.warn('❌ Employee Socket Disconnected:', reason);
+            if (reason === "io server disconnect") {
+                socket.connect();
+            }
+        });
+
         return () => {
             socket.off('connect');
+            socket.off('connect_error');
+            socket.off('disconnect');
             socket.off('new_rule');
             socket.off('rule_updated');
             socket.off('notification');

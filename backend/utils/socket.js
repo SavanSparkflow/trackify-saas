@@ -5,13 +5,17 @@ let io;
 const initSocket = (server) => {
     io = new Server(server, {
         cors: {
-            origin: "*", // allow all in dev
-            methods: ["GET", "POST"]
-        }
+            origin: "*", 
+            methods: ["GET", "POST"],
+            credentials: true
+        },
+        pingTimeout: 60000,
+        pingInterval: 25000,
+        transports: ['websocket', 'polling']
     });
 
     io.on("connection", (socket) => {
-        console.log("New client connected", socket.id);
+        console.log("✅ Client connected:", socket.id);
 
         socket.on("join_company", (companyId) => {
             socket.join(companyId.toString()); // Join a room for that company

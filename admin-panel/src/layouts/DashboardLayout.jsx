@@ -69,8 +69,9 @@ export default function DashboardLayout({ role }) {
 
         const socket = io(socketUrl, {
             transports: ['websocket', 'polling'],
-            reconnectionAttempts: 10,
-            reconnectionDelay: 1000
+            reconnectionAttempts: 20,
+            reconnectionDelay: 2000,
+            timeout: 20000
         });
 
         const showBrowserNotification = (title, body, url = '/admin/notifications') => {
@@ -95,7 +96,20 @@ export default function DashboardLayout({ role }) {
         socket.on('connect', () => {
             console.log('✅ Admin Socket Connected:', socket.id);
             socket.emit('join_company', companyId);
-            socket.emit('join_user', companyId); 
+            
+            // Join personal room
+            try {
+                const payload = JSON.parse(atob(token.split('.')[1]));
+                if (payload.id) {
+                    socket.emit('join_user', payload.id);
+                    console.log('✅ Joined Admin User Room:', payload.id);
+                }
+                // Also join company as user for backwards compatibility with some emits
+                socket.emit('join_user', companyId);
+            } catch (e) {
+                console.error("Token decode error for socket joining", e);
+                socket.emit('join_user', companyId); 
+            }
         });
 
         socket.on('new_leave_request', (data) => {
@@ -117,6 +131,13 @@ export default function DashboardLayout({ role }) {
 
         socket.on('disconnect', (reason) => {
             console.warn('❌ Admin Socket Disconnected:', reason);
+            if (reason === "io server disconnect") {
+                socket.connect();
+            }
+        });
+
+        socket.on('connect_error', (error) => {
+            console.error('❌ Admin Socket Connection Error:', error);
         });
 
         return () => {
