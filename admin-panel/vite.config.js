@@ -16,6 +16,14 @@ export default defineConfig({
         ws: true,
         changeOrigin: true,
         secure: false,
+        timeout: 60000,
+        proxyTimeout: 60000,
+        configure: (proxy, _options) => {
+          proxy.on('error', (err, _req, _res) => {
+            // Log briefly instead of crashing or showing massive stack traces
+            console.error('[Vite Proxy Error]:', err.code === 'ECONNABORTED' ? 'Connection Aborted (backend likely closed it)' : err.message);
+          });
+        }
       }
     }
   }

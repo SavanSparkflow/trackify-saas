@@ -82,10 +82,11 @@ export default function EmployeeLayout() {
             : window.location.origin;
 
         const socket = io(socketUrl, {
-            transports: ['websocket', 'polling'],
+            transports: ['polling', 'websocket'], // Polling first for proxy compatibility
             reconnectionAttempts: 10,
-            reconnectionDelay: 2000,
-            timeout: 20000
+            reconnectionDelay: 3000,
+            timeout: 10000,
+            autoConnect: true
         });
 
         socket.on('connect', () => {

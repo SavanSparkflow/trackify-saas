@@ -223,7 +223,7 @@ const processPunchOut = async ({ userId, companyId, location, photo }) => {
     return { message: 'Punched Out Successfully', attendance };
 };
 
-const processBreakStart = async ({ userId, companyId, location }) => {
+const processBreakStart = async ({ userId, companyId, location, photo }) => {
     const attendance = await getTodayRecord(userId);
 
     if (!attendance || !attendance.punchIn) throw new Error('Must punch in first.');
@@ -233,7 +233,13 @@ const processBreakStart = async ({ userId, companyId, location }) => {
     if (openBreak) throw new Error('Already on break.');
 
     const now = new Date();
-    attendance.breaks.push({ breakStart: now, locationStart: location });
+    let photoUrl = photo;
+    if (photo && photo.startsWith('data:image')) {
+        const url = await uploadToCloudinary(photo, `attendance/breakstart/${userId}`);
+        if (url) photoUrl = url;
+    }
+
+    attendance.breaks.push({ breakStart: now, locationStart: location, photoStart: photoUrl });
     await attendance.save();
 
     await notifyParent(userId, (user) => `Hello,\nYour child ${user.name} has:\n☕ Started Break at ${moment(now).format('hh:mm A')}\n- Trackify System`);
@@ -241,7 +247,7 @@ const processBreakStart = async ({ userId, companyId, location }) => {
     return { message: 'Break Started', attendance };
 };
 
-const processBreakEnd = async ({ userId, companyId, location }) => {
+const processBreakEnd = async ({ userId, companyId, location, photo }) => {
     const attendance = await getTodayRecord(userId);
 
     if (!attendance) throw new Error('No attendance record.');
@@ -268,6 +274,13 @@ const processBreakEnd = async ({ userId, companyId, location }) => {
         }
     }
 
+    let photoUrl = photo;
+    if (photo && photo.startsWith('data:image')) {
+        const url = await uploadToCloudinary(photo, `attendance/breakend/${userId}`);
+        if (url) photoUrl = url;
+    }
+
+    openBreak.photoEnd = photoUrl;
     await attendance.save();
 
     await notifyParent(userId, (user) => `Hello,\nYour child ${user.name} has:\n🔁 Ended Break at ${moment(now).format('hh:mm A')}\n- Trackify System`);

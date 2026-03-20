@@ -533,29 +533,62 @@ module.exports = {
     },
     kioskPunch: async (req, res) => {
         try {
-            const { userId, location, photo } = req.body;
+            const { userId, location, photo, action = 'auto' } = req.body;
+            console.log(`[Backend Kiosk] Punch received - User: ${userId}, Action: ${action}`);
             const companyId = req.user.companyId;
 
             const attendance = await getTodayRecord(userId);
             let result;
 
-            if (!attendance || !attendance.punchIn) {
-                result = await processPunchIn({
-                    userId,
-                    companyId,
-                    location: location || { lat: 0, lng: 0 },
-                    photo: photo || 'Manual',
-                    ipAddress: req.headers['x-forwarded-for'] || req.socket.remoteAddress
-                });
-            } else if (!attendance.punchOut) {
+            if (action === 'auto') {
+                if (!attendance || !attendance.punchIn) {
+                    // Automatically Punch In if not clocked in
+                    result = await processPunchIn({
+                        userId,
+                        companyId,
+                        location: location || { lat: 0, lng: 0 },
+                        photo: photo || 'Kiosk',
+                        ipAddress: req.headers['x-forwarded-for'] || req.socket.remoteAddress
+                    });
+                } else if (!attendance.punchOut) {
+                    // Already in? Demand a choice (Option 3)
+                    return res.status(200).json({ 
+                        requiresActionChoice: true, 
+                        status: attendance.breaks.find(b => !b.breakEnd) ? 'on_break' : 'punched_in',
+                        message: 'What would you like to do?'
+                    });
+                } else {
+                    return res.status(400).json({ message: 'Already finished shift for today.' });
+                }
+            } else if (action === 'break') {
+                if (!attendance || !attendance.punchIn) {
+                    return res.status(400).json({ message: 'Must punch in before taking a break.' });
+                }
+                if (attendance.punchOut) {
+                    return res.status(400).json({ message: 'Already finished shift for today.' });
+                }
+
                 const openBreak = attendance.breaks.find(b => !b.breakEnd);
                 if (openBreak) {
-                    result = await processBreakEnd({ userId, companyId, location: location || { lat: 0, lng: 0 } });
+                    result = await processBreakEnd({ userId, companyId, location: location || { lat: 0, lng: 0 }, photo });
                 } else {
-                    result = await processPunchOut({ userId, companyId, location: location || { lat: 0, lng: 0 }, photo: photo || 'Manual' });
+                    result = await processBreakStart({ userId, companyId, location: location || { lat: 0, lng: 0 }, photo });
                 }
             } else {
-                return res.status(400).json({ message: 'Already finished shift for today.' });
+                // Explicit Attendance Action (Force Punch Out if already in)
+                if (!attendance || !attendance.punchIn) {
+                    result = await processPunchIn({
+                        userId,
+                        companyId,
+                        location: location || { lat: 0, lng: 0 },
+                        photo: photo || 'Kiosk',
+                        ipAddress: req.headers['x-forwarded-for'] || req.socket.remoteAddress
+                    });
+                } else if (!attendance.punchOut) {
+                    result = await processPunchOut({ userId, companyId, location: location || { lat: 0, lng: 0 }, photo: photo || 'Kiosk' });
+                } else {
+                    return res.status(400).json({ message: 'Already finished shift for today.' });
+                }
             }
 
             res.status(200).json(result);

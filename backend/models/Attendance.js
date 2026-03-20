@@ -21,7 +21,9 @@ const attendanceSchema = new mongoose.Schema({
             locationEnd: {
                 lat: { type: Number },
                 lng: { type: Number }
-            }
+            },
+            photoStart: { type: String },
+            photoEnd: { type: String }
         }
     ],
 

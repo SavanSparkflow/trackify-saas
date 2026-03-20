@@ -16,6 +16,8 @@ export default function KioskMode() {
     const [initializingCamera, setInitializingCamera] = useState(false);
     const [lastScanResult, setLastScanResult] = useState(null);
     const [scanCooldown, setScanCooldown] = useState(false);
+    const [pendingChoice, setPendingChoice] = useState(null); // { employee, photo, location, status }
+    const [actionCountdown, setActionCountdown] = useState(5);
     
     const videoRef = useRef(null);
     const canvasRef = useRef(null);
@@ -86,44 +88,29 @@ export default function KioskMode() {
                     img.onerror = reject;
                 });
 
-                // Optimization: Pre-process image to handle backlighting (Common in user photos)
+                // Optimization: Pre-process image for better visibility
                 const processingCanvas = document.createElement('canvas');
                 const ctx = processingCanvas.getContext('2d');
                 processingCanvas.width = img.width;
                 processingCanvas.height = img.height;
-                ctx.filter = 'contrast(1.2) brightness(1.1)'; // Boost visibility for AI
+                ctx.filter = 'contrast(1.2) brightness(1.1)'; 
                 ctx.drawImage(img, 0, 0);
 
-                // Use detectAllFaces for better robustness against background noise
-                let detections = await faceapi.detectAllFaces(processingCanvas, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.2 }))
+                // Use detectSingleFace for employee photos (1 person per photo)
+                let detection = await faceapi.detectSingleFace(processingCanvas, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.2 }))
                     .withFaceLandmarks()
-                    .withFaceDescriptors();
+                    .withFaceDescriptor();
 
-                // If SSD failed, try TinyFace with better resolution
-                if (detections.length === 0) {
-                    console.log(`SSD failed for ${emp.name}, trying high-res TinyFace fallback...`);
-                    detections = await faceapi.detectAllFaces(processingCanvas, new faceapi.TinyFaceDetectorOptions({ inputSize: 512, scoreThreshold: 0.15 }))
+                if (!detection) {
+                    console.log(`SSD failed for ${emp.name}, trying TinyFace fallback...`);
+                    detection = await faceapi.detectSingleFace(processingCanvas, new faceapi.TinyFaceDetectorOptions({ inputSize: 512, scoreThreshold: 0.1 }))
                         .withFaceLandmarks()
-                        .withFaceDescriptors();
+                        .withFaceDescriptor();
                 }
 
-                if (detections.length > 0) {
-                    // Pick the most prominent face (largest box)
-                    const prominentFace = detections.sort((a, b) => (b.detection.box.width * b.detection.box.height) - (a.detection.box.width * a.detection.box.height))[0];
-                    
-                    try {
-                        const faceCanvas = await faceapi.extractFaces(processingCanvas, [prominentFace]);
-                        if (faceCanvas.length > 0) {
-                            const descriptor = await faceapi.computeFaceDescriptor(faceCanvas[0]);
-                            labeledDescriptors.push(new faceapi.LabeledFaceDescriptors(emp._id, [descriptor]));
-                        } else {
-                            labeledDescriptors.push(new faceapi.LabeledFaceDescriptors(emp._id, [prominentFace.descriptor]));
-                        }
-                        successCount++;
-                    } catch (e) {
-                        labeledDescriptors.push(new faceapi.LabeledFaceDescriptors(emp._id, [prominentFace.descriptor]));
-                        successCount++;
-                    }
+                if (detection) {
+                    labeledDescriptors.push(new faceapi.LabeledFaceDescriptors(emp._id, [detection.descriptor]));
+                    successCount++;
                 } else {
                     console.error(`AI Detection failed for photo of ${emp.name}. Potential cause: Poor lighting or extreme angle.`);
                 }
@@ -171,28 +158,34 @@ export default function KioskMode() {
     }, [scanning, modelsLoaded]);
 
     useEffect(() => {
-        let interval = null;
-        if (scanning && modelsLoaded && faceMatcher && !initializingCamera && !scanCooldown) {
-            interval = setInterval(async () => {
-                if (videoRef.current && videoRef.current.readyState === 4 && canvasRef.current) {
+        let timeoutId = null;
+        let isActive = true;
+
+        const scanLoop = async () => {
+            if (!isActive) return;
+            
+            // Initial check to decide if scanning should proceed or wait
+            if (!scanning || !modelsLoaded || !faceMatcher || initializingCamera || scanCooldown || pendingChoice) {
+                timeoutId = setTimeout(scanLoop, 500); 
+                return;
+            }
+
+            if (videoRef.current && videoRef.current.readyState === 4 && canvasRef.current) {
+                try {
                     const video = videoRef.current;
                     const canvas = canvasRef.current;
                     
-                    // Use detectAllFaces for camera to handle accidental background "faces" better
-                    const detections = await faceapi.detectAllFaces(video, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 }))
-                        .withFaceLandmarks()
-                        .withFaceDescriptors();
+                    const detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ 
+                        inputSize: 320,
+                        scoreThreshold: 0.5 
+                    })).withFaceLandmarks().withFaceDescriptor();
                     
                     const displaySize = { width: video.offsetWidth, height: video.offsetHeight };
                     faceapi.matchDimensions(canvas, displaySize);
 
-                    if (detections && detections.length > 0) {
+                    if (detection) {
                         setFaceDetected(true);
-                        
-                        // Select the most prominent face found in the feed
-                        const prominentFace = detections.sort((a, b) => (b.detection.box.width * b.detection.box.height) - (a.detection.box.width * a.detection.box.height))[0];
-                        
-                        const resizedDetections = faceapi.resizeResults(prominentFace, displaySize);
+                        const resizedDetections = faceapi.resizeResults(detection, displaySize);
                         const ctx = canvas.getContext('2d');
                         ctx.clearRect(0, 0, canvas.width, canvas.height);
                         
@@ -201,42 +194,71 @@ export default function KioskMode() {
                         ctx.lineWidth = 4;
                         ctx.strokeRect(box.x, box.y, box.width, box.height);
 
-                        const match = faceMatcher.findBestMatch(prominentFace.descriptor);
-                        if (match.label !== 'unknown' && match.distance <= 0.50) {
+                        const match = faceMatcher.findBestMatch(detection.descriptor);
+                        if (match.label !== 'unknown' && match.distance <= 0.55) {
                             handleMatchFound(match.label);
+                            // handleMatchFound sets scanCooldown = true, so next loop will hit the early exit
                         }
                     } else {
                         const ctx = canvas.getContext('2d');
                         ctx.clearRect(0, 0, canvas.width, canvas.height);
                         setFaceDetected(false);
                     }
+                } catch (err) {
+                    console.error("Scan loop error:", err);
                 }
-            }, 500);
-        }
-        return () => { if (interval) clearInterval(interval); };
-    }, [scanning, modelsLoaded, faceMatcher, initializingCamera, scanCooldown]);
+            }
+            
+            timeoutId = setTimeout(scanLoop, 100); 
+        };
 
-    const handleMatchFound = async (userId) => {
+        if (scanning && modelsLoaded && faceMatcher) {
+            scanLoop();
+        }
+
+        return () => { 
+            isActive = false;
+            if (timeoutId) clearTimeout(timeoutId); 
+        };
+    }, [scanning, modelsLoaded, faceMatcher, initializingCamera, scanCooldown, pendingChoice]);
+
+    const handleMatchFound = async (userId, explicitAction = 'auto') => {
         // Prevent multiple simultaneous scans
-        setScanCooldown(true);
-        const employee = employees.find(e => e._id === userId);
+        if (!explicitAction || explicitAction === 'auto') {
+            setScanCooldown(true);
+        }
         
+        const employee = employees.find(e => e._id === userId);
         if (!employee) {
             setScanCooldown(false);
             return;
         }
 
-        const photo = captureSnapshot();
-        const location = await getCurrentLocation();
+        // Only capture once per scan session
+        const photo = pendingChoice?.photo || captureSnapshot();
+        const location = pendingChoice?.location || await getCurrentLocation();
 
         try {
             const token = localStorage.getItem('token');
             const res = await axios.post(`${import.meta.env.VITE_API_URL}/admin/kiosk/punch`, {
                 userId,
                 location,
-                photo
+                photo,
+                action: explicitAction
             }, { headers: { Authorization: `Bearer ${token}` } });
 
+            if (res.data.requiresActionChoice) {
+                setPendingChoice({
+                    employee,
+                    photo,
+                    location,
+                    status: res.data.status
+                });
+                setActionCountdown(5);
+                return;
+            }
+
+            setPendingChoice(null);
             setLastScanResult({
                 name: employee.name,
                 message: res.data.message,
@@ -245,13 +267,13 @@ export default function KioskMode() {
             });
             toast.success(`${employee.name}: ${res.data.message}`);
         } catch (err) {
+            setPendingChoice(null);
             setLastScanResult({
                 name: employee.name,
                 message: err.response?.data?.message || 'Error',
                 status: 'error',
                 time: new Date().toLocaleTimeString()
             });
-            toast.error(`${employee.name}: ${err.response?.data?.message || 'Error'}`);
         }
 
         // Wait 5 seconds before allowing another scan
@@ -260,6 +282,21 @@ export default function KioskMode() {
             setLastScanResult(null);
         }, 5000);
     };
+
+    // Auto-countdown effect for modal
+    useEffect(() => {
+        let timer;
+        if (pendingChoice && actionCountdown > 0) {
+            timer = setInterval(() => {
+                setActionCountdown(prev => prev - 1);
+            }, 1000);
+        } else if (pendingChoice && actionCountdown === 0) {
+            // Cancel and resume scanning if no action taken
+            setPendingChoice(null);
+            setTimeout(() => setScanCooldown(false), 2000);
+        }
+        return () => clearInterval(timer);
+    }, [pendingChoice, actionCountdown]);
 
     const captureSnapshot = () => {
         if (!videoRef.current) return null;
@@ -292,7 +329,7 @@ export default function KioskMode() {
     }
 
     return (
-        <div className="fixed inset-0 bg-slate-950 flex flex-col items-center justify-center z-[2000] p-4 sm:p-8 lg:p-12 overflow-y-auto overflow-x-hidden">
+        <div className="fixed inset-0 bg-slate-950 flex flex-col items-center justify-start z-[2000] p-4 sm:p-8 lg:p-12 overflow-y-auto overflow-x-hidden pt-24 sm:pt-32">
             {/* Header */}
             <div className="absolute top-4 sm:top-8 left-4 sm:left-8 right-4 sm:right-8 flex flex-row justify-between items-center z-10 w-[calc(100%-2rem)] sm:w-[calc(100%-4rem)]">
                 <button 
@@ -308,6 +345,54 @@ export default function KioskMode() {
                     <p className="text-slate-400 font-bold uppercase tracking-widest text-[7px] sm:text-[10px]">Biometric Attendance Station</p>
                 </div>
             </div>
+
+            {/* Action Selection Modal (Option 3) */}
+            {pendingChoice && (
+                <div className="fixed inset-0 z-[3000] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-slate-950/90 backdrop-blur-xl animate-in fade-in duration-300"></div>
+                    
+                    <div className="relative w-full max-w-lg bg-slate-900 rounded-[3rem] border border-white/10 shadow-2xl overflow-hidden animate-in zoom-in slide-in-from-bottom-10 duration-500">
+                        {/* Countdown Bar */}
+                        <div className="absolute top-0 left-0 h-1.5 bg-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.5)] transition-all duration-1000 ease-linear" style={{ width: `${(actionCountdown / 5) * 100}%` }}></div>
+
+                        <div className="p-8 sm:p-12 text-center">
+                            <div className="w-24 h-24 sm:w-32 sm:h-32 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-xl shadow-blue-500/20">
+                                <UserCheck size={48} className="text-white" />
+                            </div>
+
+                            <h2 className="text-2xl sm:text-3xl font-black text-white mb-2 leading-tight">Hi, {pendingChoice.employee.name}!</h2>
+                            <p className="text-slate-400 font-bold uppercase tracking-widest text-xs mb-8">What would you like to do?</p>
+
+                            <div className="grid grid-cols-1 gap-4">
+                                <button 
+                                    onClick={() => handleMatchFound(pendingChoice.employee._id, 'break')}
+                                    className="group relative bg-orange-600 hover:bg-orange-500 text-white py-5 px-8 rounded-2xl font-black text-lg uppercase tracking-widest transition-all duration-200 active:scale-95 shadow-lg shadow-orange-600/20 overflow-hidden"
+                                >
+                                    <div className="flex items-center justify-center gap-3">
+                                        <Zap size={24} />
+                                        <span>{pendingChoice.status === 'on_break' ? 'Finish Break' : 'Take Break'}</span>
+                                    </div>
+                                </button>
+                                
+                                <button 
+                                    onClick={() => handleMatchFound(pendingChoice.employee._id, 'attendance')}
+                                    className="group relative bg-white/5 hover:bg-white/10 text-white py-5 px-8 rounded-2xl font-black text-lg uppercase tracking-widest transition-all duration-200 active:scale-95 border border-white/10"
+                                >
+                                    <div className="flex items-center justify-center gap-3 text-slate-300">
+                                        <ArrowLeft size={24} />
+                                        <span>Clock Out</span>
+                                    </div>
+                                </button>
+                            </div>
+
+                            <div className="mt-8 flex flex-col items-center gap-2">
+                                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">Auto-cancel in {actionCountdown}s</p>
+                                <button onClick={() => setPendingChoice(null)} className="text-slate-400 hover:text-white text-xs font-black uppercase underline underline-offset-4 decoration-2">Cancel</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Scanner Area */}
             <div className="w-full max-w-2xl relative mt-16 sm:mt-0 px-2">
@@ -344,7 +429,9 @@ export default function KioskMode() {
                     <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 w-max max-w-[90vw]">
                         <div className={`px-4 sm:px-10 py-2 sm:py-4 rounded-full flex items-center gap-2 sm:gap-3 backdrop-blur-xl border-2 transition-all duration-300 ${faceDetected ? 'bg-green-500/20 border-green-500 text-green-400' : 'bg-blue-500/20 border-blue-500 text-blue-400'}`}>
                             {faceDetected ? <UserCheck size={16} sm:size={20} /> : <div className="animate-spin h-4 w-4 sm:h-5 sm:w-5 border-2 border-white/20 border-t-white rounded-full"></div>}
-                            <span className="text-xs sm:text-base font-black uppercase tracking-widest">{faceDetected ? 'Identity Found' : 'Waiting for Face...'}</span>
+                            <span className="text-xs sm:text-base font-black uppercase tracking-widest">
+                                {faceDetected ? 'Identity Found' : (pendingChoice ? 'Waiting for Choice...' : 'Waiting for Face...')}
+                            </span>
                         </div>
                     </div>
                 )}

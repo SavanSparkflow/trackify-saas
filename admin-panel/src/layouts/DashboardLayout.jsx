@@ -68,10 +68,11 @@ export default function DashboardLayout({ role }) {
             : window.location.origin;
 
         const socket = io(socketUrl, {
-            transports: ['websocket', 'polling'],
-            reconnectionAttempts: 20,
-            reconnectionDelay: 2000,
-            timeout: 20000
+            transports: ['polling', 'websocket'], // Polling first for better proxy stability
+            reconnectionAttempts: 10,
+            reconnectionDelay: 3000,
+            timeout: 10000,
+            autoConnect: true
         });
 
         const showBrowserNotification = (title, body, url = '/admin/notifications') => {
