@@ -1,16 +1,30 @@
-# React + Vite
+# Trackify Employee Panel 👤
+### Personal Attendance Hub & Career Insights
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+The Trackify Employee Panel empowers staff members with self-service tools for tracking work hours and attendance.
 
-Currently, two official plugins are available:
+## 🚀 Key Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+### 🏢 Personal Dashboard
+- **Daily Progress**: Real-time insights into today's work hours, break times, and earnings.
+- **Monthly Summary**: Overview of total accumulated hours and salary progress.
 
-## React Compiler
+### ⏱️ Self-Service Punching
+- **Manual Actions**: Dedicated, touch-optimized buttons for Punch-In, Break-Start/End, and Punch-Out.
+- **State-Aware UI**: Automatically toggles between available actions based on current status.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+### 📍 Verified Attendance
+- **Geofenced Verification**: Automatically verifies the employee's physical location for every attendance action.
+- **Status Indicators**: Instant visual cues for late-arrivals or active shifts.
 
-## Expanding the ESLint configuration
+---
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## 🛠️ Development Setup
+
+1. **Environment Config**: Ensure `VITE_API_URL` is set in your local `.env`.
+2. **Installation**: `npm install`
+3. **Execution**: `npm run dev` (Runs locally on port 5173 by default).
+
+---
+
+Built for Empowerment & Transparency.

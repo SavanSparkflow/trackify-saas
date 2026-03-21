@@ -1,16 +1,30 @@
-# React + Vite
+# Trackify Admin Panel 🔒
+### Organization Management & Biometric Kiosk Interface
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+The Trackify Admin Panel is a mission-critical dashboard designed for organization leaders and HR managers to oversee workforce operations.
 
-Currently, two official plugins are available:
+## 🚀 Key Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+### 🏢 Organization Control
+- **Tenant Configuration**: Manage business hours, late-arrival policies, and company profiles.
+- **Staff Enrollment**: Register new employees and upload high-fidelity biometric enrollment photos.
 
-## React Compiler
+### 📸 Biometric Kiosk Mode
+- **Attendance Station**: A dedicated, full-screen interface for physical entry/exit points.
+- **Real-time Identification**: Instant face matching using TensorFlow.js-powered AI.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+### 📊 Operations & Analytics
+- **Live Dashboards**: Track current presence, late-comers, and early-leavers.
+- **Report Engine**: Generate and export enterprise-grade attendance and salary reports in Excel format.
 
-## Expanding the ESLint configuration
+---
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## 🛠️ Development Setup
+
+1. **Environment Config**: Ensure `VITE_API_URL` is set in your local `.env`.
+2. **Installation**: `npm install`
+3. **Execution**: `npm run dev` (Runs locally on port 5174 by default).
+
+---
+
+Built for Corporate Efficiency.
