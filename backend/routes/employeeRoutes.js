@@ -31,6 +31,7 @@ router.post('/punch-in', punchIn);
 router.post('/punch-out', punchOut);
 router.post('/break/start', breakStart);
 router.post('/break/end', breakEnd);
+router.post('/smart-punch', smartPunch);
 router.post('/leave', applyLeave);
 router.post('/overtime/request', requestOvertime);
 router.post('/overtime/start', startOvertime);

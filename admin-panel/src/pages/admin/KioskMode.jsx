@@ -19,6 +19,8 @@ export default function KioskMode() {
     const [pendingChoice, setPendingChoice] = useState(null); // { employee, photo, location, status }
     const [actionCountdown, setActionCountdown] = useState(5);
     
+    const [identityVerified, setIdentityVerified] = useState(false);
+    
     const videoRef = useRef(null);
     const canvasRef = useRef(null);
     const streamRef = useRef(null);
@@ -196,13 +198,16 @@ export default function KioskMode() {
 
                         const match = faceMatcher.findBestMatch(detection.descriptor);
                         if (match.label !== 'unknown' && match.distance <= 0.55) {
+                            setIdentityVerified(true);
                             handleMatchFound(match.label);
-                            // handleMatchFound sets scanCooldown = true, so next loop will hit the early exit
+                        } else {
+                            setIdentityVerified(false);
                         }
                     } else {
                         const ctx = canvas.getContext('2d');
                         ctx.clearRect(0, 0, canvas.width, canvas.height);
                         setFaceDetected(false);
+                        setIdentityVerified(false);
                     }
                 } catch (err) {
                     console.error("Scan loop error:", err);
@@ -280,6 +285,7 @@ export default function KioskMode() {
         setTimeout(() => {
             setScanCooldown(false);
             setLastScanResult(null);
+            setIdentityVerified(false);
         }, 5000);
     };
 
@@ -427,10 +433,10 @@ export default function KioskMode() {
                 {/* Status Indicator */}
                 {!lastScanResult && (
                     <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 w-max max-w-[90vw]">
-                        <div className={`px-4 sm:px-10 py-2 sm:py-4 rounded-full flex items-center gap-2 sm:gap-3 backdrop-blur-xl border-2 transition-all duration-300 ${faceDetected ? 'bg-green-500/20 border-green-500 text-green-400' : 'bg-blue-500/20 border-blue-500 text-blue-400'}`}>
-                            {faceDetected ? <UserCheck size={16} sm:size={20} /> : <div className="animate-spin h-4 w-4 sm:h-5 sm:w-5 border-2 border-white/20 border-t-white rounded-full"></div>}
+                        <div className={`px-4 sm:px-10 py-2 sm:py-4 rounded-full flex items-center gap-2 sm:gap-3 backdrop-blur-xl border-2 transition-all duration-300 ${identityVerified ? 'bg-green-500/20 border-green-500 text-green-400' : (faceDetected ? 'bg-blue-500/20 border-blue-500 text-blue-400' : 'bg-slate-500/20 border-slate-500 text-slate-400')}`}>
+                            {identityVerified ? <UserCheck size={16} sm:size={20} /> : <div className="animate-spin h-4 w-4 sm:h-5 sm:w-5 border-2 border-white/20 border-t-white rounded-full"></div>}
                             <span className="text-xs sm:text-base font-black uppercase tracking-widest">
-                                {faceDetected ? 'Identity Found' : (pendingChoice ? 'Waiting for Choice...' : 'Waiting for Face...')}
+                                {identityVerified ? 'Identity Found' : (faceDetected ? 'No Face Found' : 'Waiting for Face...')}
                             </span>
                         </div>
                     </div>

@@ -100,14 +100,68 @@ const breakStart = async (req, res) => {
     }
 };
 
-const breakEnd = async (req, res) => {
+const smartPunch = async (req, res) => {
     try {
-        const { location } = req.body;
-        const result = await processBreakEnd({
-            userId: req.user.id,
-            companyId: req.user.companyId,
-            location
-        });
+        const { location, photo, action = 'auto' } = req.body;
+        const userId = req.user.id;
+        const companyId = req.user.companyId;
+
+        const attendance = await getTodayRecord(userId);
+        let result;
+
+        if (action === 'auto') {
+            if (!attendance || !attendance.punchIn) {
+                // Automatically Punch In if not clocked in
+                result = await processPunchIn({
+                    userId,
+                    companyId,
+                    location: location || { lat: 0, lng: 0 },
+                    photo: photo || 'Mobile App',
+                    ipAddress: req.headers['x-forwarded-for'] || req.socket.remoteAddress
+                });
+            } else if (!attendance.punchOut) {
+                // Already in? Demand a choice (Option 3)
+                return res.status(200).json({ 
+                    requiresActionChoice: true, 
+                    status: attendance.breaks.find(b => !b.breakEnd) ? 'on_break' : 'punched_in',
+                    message: 'What would you like to do?'
+                });
+            } else {
+                return res.status(400).json({ message: 'Already finished shift for today.' });
+            }
+        } else if (action === 'break') {
+            if (!attendance || !attendance.punchIn) {
+                return res.status(400).json({ message: 'Must punch in before taking a break.' });
+            }
+            if (attendance.punchOut) {
+                return res.status(400).json({ message: 'Already finished shift for today.' });
+            }
+
+            const openBreak = attendance.breaks.find(b => !b.breakEnd);
+            if (openBreak) {
+                result = await processBreakEnd({ userId, companyId, location: location || { lat: 0, lng: 0 }, photo });
+            } else {
+                result = await processBreakStart({ userId, companyId, location: location || { lat: 0, lng: 0 }, photo });
+            }
+        } else if (action === 'attendance') {
+            // Explicit Attendance Action (Force Punch Out if already in)
+            if (!attendance || !attendance.punchIn) {
+                result = await processPunchIn({
+                    userId,
+                    companyId,
+                    location: location || { lat: 0, lng: 0 },
+                    photo: photo || 'Mobile App',
+                    ipAddress: req.headers['x-forwarded-for'] || req.socket.remoteAddress
+                });
+            } else if (!attendance.punchOut) {
+                result = await processPunchOut({ userId, companyId, location: location || { lat: 0, lng: 0 }, photo: photo || 'Mobile App' });
+            } else {
+                return res.status(400).json({ message: 'Already finished shift for today.' });
+            }
+        } else {
+            return res.status(400).json({ message: 'Invalid action' });
+        }
+
         res.status(200).json(result);
     } catch (err) {
         res.status(400).json({ message: err.message });
@@ -377,5 +431,6 @@ module.exports = {
     startOvertime,
     endOvertime,
     startOvertimeBreak,
-    endOvertimeBreak
+    endOvertimeBreak,
+    smartPunch
 };
