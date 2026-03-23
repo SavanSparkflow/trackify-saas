@@ -16,7 +16,8 @@ const {
     startOvertime,
     endOvertime,
     startOvertimeBreak,
-    endOvertimeBreak
+    endOvertimeBreak,
+    smartPunch
 } = require('../controllers/employeeController');
 const { getRules } = require('../controllers/ruleController');
 const { getNotifications, markAsRead, markAllAsRead, deleteNotification } = require('../controllers/notificationController');

@@ -100,6 +100,21 @@ const breakStart = async (req, res) => {
     }
 };
 
+const breakEnd = async (req, res) => {
+    try {
+        const { location, photo } = req.body;
+        const result = await processBreakEnd({
+            userId: req.user.id,
+            companyId: req.user.companyId,
+            location,
+            photo
+        });
+        res.status(200).json(result);
+    } catch (err) {
+        res.status(400).json({ message: err.message });
+    }
+};
+
 const smartPunch = async (req, res) => {
     try {
         const { location, photo, action = 'auto' } = req.body;
